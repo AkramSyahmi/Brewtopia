@@ -4,6 +4,7 @@ extends RefCounted
 ## Grinder scale: 1 = finest, 10 = coarsest.
 
 const GRIND_STEP_FACTOR := 1.25  # each step coarser makes the shot run 25% faster
+const UNTAMPED_FACTOR := 1.6  # loose grounds let water rush through (channeling)
 
 
 static func load_recipe(path: String) -> Dictionary:
@@ -12,19 +13,21 @@ static func load_recipe(path: String) -> Dictionary:
 
 
 ## Simulated espresso flow in grams per simulated second.
-static func flow_rate(recipe: Dictionary, dose_g: float, grind: float) -> float:
+static func flow_rate(recipe: Dictionary, dose_g: float, grind: float, tamped := true) -> float:
 	var target_time: float = (recipe.extraction_time_min_s + recipe.extraction_time_max_s) / 2.0
 	var target_flow: float = recipe.target_yield_g / target_time
 	var grind_factor := pow(GRIND_STEP_FACTOR, grind - recipe.grind_ideal)
 	var dose_factor := pow(recipe.dose_g / maxf(dose_g, 1.0), 1.5)  # more coffee resists more
-	return target_flow * grind_factor * dose_factor
+	var tamp_factor := 1.0 if tamped else UNTAMPED_FACTOR
+	return target_flow * grind_factor * dose_factor * tamp_factor
 
 
 ## Scores one shot. Each part is 0-100; quality is their average.
 ## Flow is judged on the time the shot needs to reach the recipe yield,
 ## so stopping early is reported as a stop-point mistake, not a grind mistake.
-static func evaluate(recipe: Dictionary, dose_g: float, grind: float, yield_g: float) -> Dictionary:
-	var flow := flow_rate(recipe, dose_g, grind)
+static func evaluate(recipe: Dictionary, dose_g: float, grind: float, yield_g: float,
+		tamped := true) -> Dictionary:
+	var flow := flow_rate(recipe, dose_g, grind, tamped)
 	var t_min: float = recipe.extraction_time_min_s
 	var t_max: float = recipe.extraction_time_max_s
 	var projected_time: float = recipe.target_yield_g / flow
@@ -43,6 +46,8 @@ static func evaluate(recipe: Dictionary, dose_g: float, grind: float, yield_g: f
 		tip = "You used less coffee than the recipe asked for. Try measuring more carefully."
 	elif dose_diff > 1.0:
 		tip = "You used more coffee than the recipe asked for. Try measuring more carefully."
+	elif not tamped:
+		tip = "You forgot to tamp. Loose grounds let the water rush through. Tamp before brewing."
 	elif projected_time < t_min:
 		tip = "The shot ran faster than this recipe's target. Try grinding a little finer."
 	elif projected_time > t_max:

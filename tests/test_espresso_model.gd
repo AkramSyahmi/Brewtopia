@@ -31,6 +31,10 @@ func _init() -> void:
 	check(Model.evaluate(r, 17.4, 6, 35).quality == Model.evaluate(r, 17.4, 6, 35).quality, "deterministic")
 	check(Model.order_score(80, 100, 70) == 83, "GDD 7.1 example = 83")
 
+	var loose := Model.evaluate(r, 18, 5, 36, false)
+	check(loose.tip.contains("tamp"), "untamped shot diagnosed")
+	check(loose.quality < nominal.quality, "untamped shot scores lower")
+
 	# Order 3 "kaw" override: shorter 30 g shot with matching time window.
 	var kaw := r.duplicate()
 	kaw.merge({"target_yield_g": 30, "extraction_time_min_s": 20, "extraction_time_max_s": 25}, true)

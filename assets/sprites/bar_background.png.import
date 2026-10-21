@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://p4lx6fmvy2uh"
-path="res://.godot/imported/portafilter.png-6b0395c5e365093ac1273d1d6f7eda5b.ctex"
+uid="uid://bvy7ohpc3oj3g"
+path="res://.godot/imported/bar_background.png-9c2775a0832b43ae93cc2932fd88807e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/portafilter.png"
-dest_files=["res://.godot/imported/portafilter.png-6b0395c5e365093ac1273d1d6f7eda5b.ctex"]
+source_file="res://assets/sprites/bar_background.png"
+dest_files=["res://.godot/imported/bar_background.png-9c2775a0832b43ae93cc2932fd88807e.ctex"]
 
 [params]
 

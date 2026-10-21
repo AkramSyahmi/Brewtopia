@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dghh6cklivwv0"
-path="res://.godot/imported/station_background.png-6defbd87742fb5b7ee9999bf0469739c.ctex"
+uid="uid://crtyg3eylt88j"
+path="res://.godot/imported/tamper.png-b3f3a780ab0376d18e3666fed9c41a66.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/station_background.png"
-dest_files=["res://.godot/imported/station_background.png-6defbd87742fb5b7ee9999bf0469739c.ctex"]
+source_file="res://assets/sprites/tamper.png"
+dest_files=["res://.godot/imported/tamper.png-b3f3a780ab0376d18e3666fed9c41a66.ctex"]
 
 [params]
 
