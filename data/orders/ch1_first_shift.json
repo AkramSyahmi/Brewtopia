@@ -9,6 +9,12 @@
     "CUSTOMER": "Customer",
     "COFFEE_ENTHUSIAST": "Coffee Lover"
   },
+  "sprites": {
+    "MENTOR": "mentor",
+    "STUDENT_REGULAR": "student",
+    "CUSTOMER": "office",
+    "COFFEE_ENTHUSIAST": "enthusiast"
+  },
   "orders": [
     {
       "customer": "STUDENT_REGULAR",
