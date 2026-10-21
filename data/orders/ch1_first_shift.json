@@ -1,19 +1,21 @@
 {
   "shift_id": "ch1_first_shift",
-  "title": "DAY 01 · FIRST SHIFT",
+  "title": "FIRST SHIFT",
   "wage_rm": 40,
   "cast": {
     "PLAYER": "You",
     "MENTOR": "Mentor",
     "STUDENT_REGULAR": "Student",
-    "CUSTOMER": "Customer",
-    "COFFEE_ENTHUSIAST": "Coffee Lover"
+    "CUSTOMER": "Office Worker",
+    "COFFEE_ENTHUSIAST": "Coffee Lover",
+    "MAKCIK": "Makcik"
   },
   "sprites": {
     "MENTOR": "mentor",
     "STUDENT_REGULAR": "student",
     "CUSTOMER": "office",
-    "COFFEE_ENTHUSIAST": "enthusiast"
+    "COFFEE_ENTHUSIAST": "enthusiast",
+    "MAKCIK": "aunty"
   },
   "orders": [
     {
@@ -22,7 +24,7 @@
       "assist": "full",
       "intro": [
         ["MENTOR", "First shift? Welcome behind the counter. This machine might look intimidating, but we'll take it one step at a time."],
-        ["PLAYER", "I know how to drink coffee. Making it is a different story."],
+        ["CHOICE", ["Making coffee is a different story from drinking it...", "I'm ready. Teach me everything!"]],
         ["MENTOR", "Good. That means you're ready to learn. Here comes our first customer."],
         ["STUDENT_REGULAR", "Hi! One double espresso, please. I have a class in twenty minutes."],
         ["MENTOR", "Weigh the coffee first, then we'll check the grinder. Someone left it on a coarse setting."]
@@ -30,11 +32,12 @@
     },
     {
       "customer": "CUSTOMER",
-      "recipe": "double_espresso_training",
+      "recipe": "latte",
       "assist": "hints",
       "intro": [
-        ["CUSTOMER", "Morning. Double espresso, thanks."],
-        ["MENTOR", "Your turn to lead. Tap Hint if you get stuck."]
+        ["CUSTOMER", "Morning. A latte, please. Long night at the office."],
+        ["CHOICE", ["Coming right up!", "How do I make a latte?"]],
+        ["MENTOR", "A latte is espresso in a cup with steamed milk. Fill the pitcher at the fridge, steam it to 60 to 65 degrees, then pour. Check the recipe book if you forget."]
       ]
     },
     {
@@ -49,7 +52,18 @@
       },
       "intro": [
         ["COFFEE_ENTHUSIAST", "Double espresso, but make it kaw. Stronger, shorter shot."],
+        ["CHOICE", ["What does kaw mean?", "Kaw, got it!"]],
         ["MENTOR", "Kaw means a stronger cup. Same dose, but stop the shot earlier, around 30 g. You've got this."]
+      ]
+    },
+    {
+      "customer": "MAKCIK",
+      "recipe": "gula_melaka_latte",
+      "assist": "hints",
+      "intro": [
+        ["MAKCIK", "Assalamualaikum, adik! One Gula Melaka Latte, please. Not too sweet, ya."],
+        ["CHOICE", ["Waalaikumussalam, Makcik!", "One Gula Melaka Latte, coming up!"]],
+        ["MENTOR", "Make a latte first, then use the topping station: 2 pumps of gula melaka and a little cinnamon on top."]
       ]
     }
   ],

@@ -1,0 +1,13 @@
+{
+  "recipe_id": "latte",
+  "display_name": "Latte",
+  "cup": "cup",
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 60, "temp_max": 65},
+  "ingredients": ["18 g ground coffee", "36 g espresso", "Steamed milk, 60–65°C"],
+  "steps": "Pull a double espresso into a latte cup. Fill the pitcher with milk from the fridge, steam it under the wand until the thermometer is in the green zone (60–65°C), then pour the milk into the cup."
+}

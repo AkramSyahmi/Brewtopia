@@ -216,6 +216,8 @@ const LOOKS := {
 		"pants": Color("#3A3F4E")},
 	"enthusiast": {"skin": Color("#D9A57A"), "hair": Color("#5A4033"), "shirt": Color("#7A4E6E"),
 		"pants": Color("#4A3B30"), "glasses": true, "beard": true},
+	"aunty": {"skin": Color("#C9926A"), "hair_style": "tudung", "tudung": Color("#C46A8A"),
+		"shirt": Color("#E8C04A"), "pants": Color("#6A4E8A")},
 }
 
 

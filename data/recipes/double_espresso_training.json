@@ -1,12 +1,12 @@
 {
   "recipe_id": "double_espresso_training",
   "display_name": "Double Espresso",
-  "requires_milk": false,
+  "cup": "glass",
   "dose_g": 18,
   "target_yield_g": 36,
   "extraction_time_min_s": 25,
   "extraction_time_max_s": 30,
   "grind_ideal": 5,
-  "required_actions": ["select_beans", "dose", "grind", "extract", "serve"],
-  "education_tip_ids": ["grind_size", "brew_ratio", "fast_flow"]
+  "ingredients": ["18 g ground coffee", "36 g espresso out"],
+  "steps": "Grind 18 g into the portafilter and tamp it flat. Lock it into the group head, put a glass on the scale and pull the shot. Stop at about 36 g, in 25 to 30 seconds. Serve it straight."
 }

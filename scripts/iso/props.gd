@@ -332,6 +332,27 @@ static func cups_rack(parent: Node3D) -> Node3D:
 	return r
 
 
+static func syrup_bottle(parent: Node3D, liquid: Color) -> Node3D:
+	var b := node(parent)
+	IsoKit.cyl(b, 0.045, 0.2, Vector3(0, 0.1, 0), liquid, false, false, 0.04)
+	IsoKit.cyl(b, 0.02, 0.05, Vector3(0, 0.225, 0), Color("#DDE6EA"))
+	IsoKit.cyl(b, 0.012, 0.07, Vector3(0, 0.28, 0), BLACK)
+	IsoKit.box(b, Vector3(0.06, 0.015, 0.02), Vector3(0.025, 0.315, 0), BLACK)  # pump nozzle
+	IsoKit.box(b, Vector3(0.07, 0.07, 0.004), Vector3(0, 0.1, 0.046), CREAM)  # label
+	IsoKit.sphere(b, 0.018, Vector3(0, 0.1, 0.05), liquid.darkened(0.2))
+	return b
+
+
+static func topping_box(parent: Node3D, filling: Color, bumps := true) -> Node3D:
+	var t := node(parent)
+	IsoKit.box(t, Vector3(0.16, 0.08, 0.14), Vector3(0, 0.04, 0), STEEL, true)
+	IsoKit.box(t, Vector3(0.14, 0.02, 0.12), Vector3(0, 0.08, 0), filling)
+	if bumps:
+		for i in 6:
+			IsoKit.sphere(t, 0.018, Vector3(-0.05 + (i % 3) * 0.05, 0.09, -0.03 + (i / 3) * 0.05), filling.lightened(0.15))
+	return t
+
+
 ## Blocky low-poly person, origin at the feet, facing +Z. `look` keys:
 ## skin, hair, shirt, pants, hair_style ("short", "bun", "long", "cap"), cap, apron, glasses, beard.
 static func person(parent: Node3D, look: Dictionary) -> Node3D:
@@ -355,12 +376,24 @@ static func person(parent: Node3D, look: Dictionary) -> Node3D:
 	IsoKit.box(body, Vector3(0.27, 0.28, 0.25), Vector3(0, 1.54, 0), skin)  # head
 	for ex in [-0.06, 0.06]:
 		IsoKit.box(body, Vector3(0.04, 0.05, 0.01), Vector3(ex, 1.55, 0.128), BLACK, false, false, false)
-	IsoKit.box(body, Vector3(0.08, 0.015, 0.01), Vector3(0, 1.47, 0.128), Color("#8A4A3A"), false, false, false)
+	if look.get("happy", false):
+		IsoKit.box(body, Vector3(0.12, 0.03, 0.01), Vector3(0, 1.465, 0.128), Color("#7A2E2A"), false, false, false)
+		for cx in [-0.09, 0.09]:
+			IsoKit.box(body, Vector3(0.04, 0.025, 0.01), Vector3(cx, 1.5, 0.128), Color("#E89A8A"), false, false, false)
+	else:
+		IsoKit.box(body, Vector3(0.08, 0.015, 0.01), Vector3(0, 1.47, 0.128), Color("#8A4A3A"), false, false, false)
 	if look.get("glasses", false):
 		IsoKit.box(body, Vector3(0.2, 0.06, 0.012), Vector3(0, 1.555, 0.132), Color("#1E1410"), false, false, false)
 	if look.get("beard", false):
 		IsoKit.box(body, Vector3(0.25, 0.1, 0.03), Vector3(0, 1.45, 0.12), hair, false, false, false)
 	match look.get("hair_style", "short"):
+		"tudung":
+			var cloth: Color = look.get("tudung", Color("#C46A8A"))
+			IsoKit.box(body, Vector3(0.31, 0.12, 0.29), Vector3(0, 1.72, 0), cloth)
+			IsoKit.box(body, Vector3(0.05, 0.34, 0.27), Vector3(-0.155, 1.53, 0), cloth)
+			IsoKit.box(body, Vector3(0.05, 0.34, 0.27), Vector3(0.155, 1.53, 0), cloth)
+			IsoKit.box(body, Vector3(0.31, 0.32, 0.06), Vector3(0, 1.55, -0.12), cloth)
+			IsoKit.box(body, Vector3(0.46, 0.2, 0.28), Vector3(0, 1.3, 0), cloth)  # drapes over the shoulders
 		"cap":
 			var cap: Color = look.get("cap", Color("#C0504D"))
 			IsoKit.box(body, Vector3(0.29, 0.1, 0.27), Vector3(0, 1.71, 0), cap)

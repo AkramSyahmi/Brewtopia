@@ -1,5 +1,6 @@
 extends SceneTree
-## Visual check: drives one order through the 2D espresso station and saves screenshots.
+## Visual check: drives the counter, a Gula Melaka Latte through the bar (espresso, milk,
+## toppings), the result, the shop and the recipe book, saving a screenshot of each.
 ## Run (needs a window, not --headless):
 ##   Godot_console.exe --path . --script res://tests/capture_views.gd -- <out_dir>
 
@@ -20,25 +21,44 @@ func shot(name: String, wait := 0.8) -> void:
 
 func run() -> void:
 	out = OS.get_cmdline_user_args()[0]
-	await shot("1_counter", 3.0)
+	await shot("1_counter", 2.5)
+	shift.advance()
+	await shot("2_choices")
+	shift.start_order(3)
+	await shot("3_makcik", 2.5)
 	shift.show_step(shift.Step.BAR)
 	var st: EspressoStation = shift.station
-	await shot("2_bar_start")
-	st.place_pf("fork")
-	st.grinding = true
-	await shot("3_grinding", 2.4)
-	st.grinding = false
-	st.place_pf("mat")
-	await create_timer(0.3).timeout
-	st.tamp()
-	await create_timer(0.6).timeout
+	st.dose_g = 18.0
+	st.shot_grind = 5
+	st.tamped = true
 	st.place_pf("group")
-	st.press(st.RACK_AT + Vector2(150, 30))
-	st.dragging.position = st.TRAY_SPOT
-	st.release()
+	st.new_cup("cup", st.TRAY_CENTRE)
+	st.cup.position = st.TRAY_CENTRE - st.cup.texture.get_size() / 2
+	st.cup_spot = "tray"
 	st.toggle_brew()
-	await shot("4_brewing", 3.0)
+	await shot("4_brewing", 2.0)
+	while st.cup_yield < 36.0:
+		await create_timer(0.05).timeout
 	st.toggle_brew()
-	st.drop_cup(st.SERVE_RECT.get_center())
-	await shot("5_result", 1.0)
+	st.pitcher_milk = true
+	st.pitcher.position = st.STEAM_ZONE.get_center() - st.pitcher.texture.get_size() / 2
+	st.open_steam()
+	st.milk_temp = 62.0
+	await shot("5_steam")
+	st.close_steam()
+	st.pour_milk()
+	await shot("6_latte")
+	st.go_page(1)
+	await create_timer(0.6).timeout
+	st.add_syrup("gula_melaka")
+	st.add_syrup("gula_melaka")
+	st.add_topping("cinnamon")
+	await shot("7_toppings")
+	st.drop_cup(st.SERVE2_RECT.get_center() + Vector2(st.PAGE_W, 0))
+	await shot("8_result")
+	shift.shop.open(shift.save)
+	await shot("9_shop")
+	shift.shop.hide()
+	shift.book.show()
+	await shot("10_book")
 	quit()

@@ -1,0 +1,15 @@
+{
+  "recipe_id": "gula_melaka_latte",
+  "display_name": "Gula Melaka Latte",
+  "cup": "cup",
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 60, "temp_max": 65},
+  "syrups": {"gula_melaka": 2},
+  "toppings": ["cinnamon"],
+  "ingredients": ["18 g ground coffee", "36 g espresso", "Steamed milk, 60–65°C", "2 pumps gula melaka (palm sugar) syrup", "A sprinkle of cinnamon"],
+  "steps": "Make a latte: espresso into a latte cup, then steamed milk at 60–65°C. Take it to the topping station, add 2 pumps of gula melaka syrup and sprinkle cinnamon on top."
+}
