@@ -68,6 +68,8 @@ var pf: Node3D
 var tamper: Node3D
 var spots := {}
 var highlight: ShaderMaterial
+var dose_bubble: Label  # big readable scale readouts floating over the equipment
+var cup_bubble: Label
 
 
 func _ready() -> void:
@@ -121,6 +123,41 @@ func _ready() -> void:
 	pickable(stack_area, "stack", Vector3(0.22, 0.2, 0.18), Vector3(0, 0.08, 0))
 	set_grind(grind)
 	update_pf()
+	dose_bubble = bubble()
+	cup_bubble = bubble()
+
+
+func bubble() -> Label:
+	var l := Label.new()
+	l.add_theme_font_size_override("font_size", 30)
+	l.add_theme_color_override("font_color", Color("#F5E7CA"))
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color("#36251D", 0.9)
+	s.border_color = Color("#BE895B")
+	s.set_border_width_all(3)
+	s.set_corner_radius_all(6)
+	s.set_content_margin_all(10)
+	l.add_theme_stylebox_override("normal", s)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.mouse_filter = MOUSE_FILTER_IGNORE
+	l.hide()
+	add_child(l)
+	return l
+
+
+## Shows `grams` against `target` above a 3D point; green when close, red when over.
+func show_bubble(l: Label, at: Vector3, grams: float, target: float, extra := "", centred := true) -> void:
+	l.text = "%.1f g  /  %d g%s" % [grams, int(target), extra]
+	var c := Color("#F5E7CA")
+	if absf(grams - target) <= 0.5:
+		c = Color("#9FE08A")
+	elif grams > target + 1.0:
+		c = Color("#FF8A7A")
+	l.add_theme_color_override("font_color", c)
+	l.reset_size()
+	var p := camera.unproject_position(at) * PIXEL_SCALE
+	l.position = p - Vector2(l.size.x / 2.0 if centred else 0.0, l.size.y / 2.0)
+	l.show()
 
 
 func build_room() -> void:
@@ -191,6 +228,15 @@ func _process(delta: float) -> void:
 			tamped = false
 			update_pf()
 	(grinder.get_node("LCD") as Label3D).text = "%.1fg" % (dose_g if pf_spot == "fork" else 0.0)
+	if recipe and (grinding or (pf_spot == "fork" and dragging != pf)):
+		show_bubble(dose_bubble, grinder.to_global(Vector3(0.13, 0.22, 0.1)), dose_g, recipe.dose_g, "", false)
+	else:
+		dose_bubble.hide()
+	if recipe and cup and cup_spot == "tray" and (extracting or cup_yield > 0.0):
+		show_bubble(cup_bubble, machine.to_global(Vector3(0, -0.02, 0.32)), cup_yield,
+			recipe.target_yield_g, "   ·   %d s" % int(sim_time))
+	else:
+		cup_bubble.hide()
 
 	if extracting:
 		var step := delta * sim_speed
