@@ -25,7 +25,8 @@ const GLASS := Color(0.85, 0.93, 0.95, 0.75)
 
 ## 3x5 pixel font, rows top to bottom.
 const FONT := {
-	"A": "010101111101101", "E": "111100110100111", "H": "101101111101101",
+	"A": "010101111101101", "B": "110101110101110", "R": "110101110101101",
+	"W": "101101111111101", "Y": "101101010010010", "E": "111100110100111", "H": "101101111101101",
 	"I": "111010010010111", "K": "101101110101101", "L": "100100100100111",
 	"M": "101111111101101", "N": "110101101101101", "O": "111101101101111",
 	"P": "111101111100100", "T": "111010010010010", "U": "101101101101111",
@@ -42,6 +43,12 @@ func _init() -> void:
 	cups()
 	jar("jar_dark", COFFEE)
 	jar("jar_light", Color("#8A5A36"))
+	station()
+	dial()
+	push_button("grinder_button", Color("#C0504D"), 28, 16)
+	push_button("brew_button", SAGE, 32, 18)
+	portafilter()
+	big_cup()
 	character("mentor", Color("#C68B5E"), Color("#2A1B14"), "bun", CREAM, SAGE)
 	character("student", Color("#E2B48A"), Color("#C0504D"), "cap", Color("#5B7DB1"), null)
 	character("office", Color("#8D5A3B"), Color("#1E1410"), "short", Color("#6E8FA8"), null)
@@ -305,6 +312,146 @@ func jar(sprite_name: String, beans: Color) -> void:
 	rect(img, 5, 14, 6, 1, BEAN)
 	outline(img)
 	save(img, sprite_name)
+
+
+# ---------- brewing station close-up (barista POV), 960x360 base ----------
+# Layout (base px): grinder at (40,70), dose scale (125,284), machine (380,90),
+# cup scale on drip tray (485,272). Interactive parts are separate sprites.
+
+const TILE := Color("#EFE3CC")
+const GROUT := Color("#D4C2A3")
+
+
+func station() -> void:
+	var img := new_img(960, 360)
+	rect(img, 0, 0, 960, 250, TILE)
+	for row in range(0, 250, 10):
+		rect(img, 0, row, 960, 1, GROUT)
+		var off := 0 if (row / 10) % 2 == 0 else 10
+		for x in range(off, 960, 20):
+			rect(img, x, row, 1, 10, GROUT)
+	rect(img, 0, 44, 960, 5, BEAN)
+	for i in 12:
+		var cx := 210 + i * 14
+		rect(img, cx, 34, 10, 10, PORCELAIN)
+		rect(img, cx + 10, 37, 2, 4, PORCELAIN)
+	for i in 3:
+		rect(img, 760 + i * 30, 22, 20, 22, GLASS)
+		rect(img, 761 + i * 30, 30, 18, 13, [COFFEE, Color("#8A5A36"), BEAN][i])
+		rect(img, 761 + i * 30, 19, 18, 3, BEAN)
+	glow(img, 480, 0, 260, Color("#FFE9B8"), 0.25)
+	rect(img, 0, 250, 960, 110, Color("#C9A57A"))
+	rect(img, 0, 250, 960, 3, CREAM)
+	for y in range(262, 360, 13):
+		for x in range((y * 7) % 40, 960, 90):
+			rect(img, x, y, 55, 1, Color("#B8915F"))
+	big_grinder(img, 40, 70)
+	big_scale(img, 125, 284)
+	big_machine(img, 380, 90)
+	big_scale(img, 485, 272)
+	save(img, "station_background")
+
+
+func big_grinder(img: Image, x: int, y: int) -> void:
+	for r in 64:
+		var hw := 35 - r * 15 / 64
+		rect(img, x + 55 - hw, y + 6 + r, hw * 2, 1, GLASS)
+	for yy in range(y + 28, y + 70):
+		for xx in range(x + 15, x + 95):
+			var a := img.get_pixel(xx, yy).a
+			if a > 0.1 and a < 0.9 and (xx + yy * 2) % 3 == 0:
+				img.set_pixel(xx, yy, COFFEE if (xx + yy) % 2 == 0 else BEAN)
+	rect(img, x + 18, y, 74, 6, GRINDER_BODY)
+	rect(img, x + 30, y + 70, 50, 122, GRINDER_BODY)
+	rect(img, x + 33, y + 72, 4, 118, GRINDER_BODY.lightened(0.2))
+	disc(img, x + 55, y + 105, 22, STEEL_DARK)
+	rect(img, x + 41, y + 136, 32, 22, ESPRESSO)
+	rect(img, x + 80, y + 150, 24, 8, STEEL_DARK)
+	rect(img, x + 98, y + 158, 8, 6, STEEL_DARK)
+	rect(img, x + 30, y + 192, 50, 38, STEEL_DARK)
+	rect(img, x + 30, y + 192, 50, 2, STEEL)
+
+
+func big_scale(img: Image, x: int, y: int) -> void:
+	rect(img, x, y + 3, 110, 13, STEEL_DARK)
+	rect(img, x + 2, y, 106, 4, STEEL_LIGHT)
+	rect(img, x + 6, y + 5, 52, 10, Color("#9FD39A"))
+	rect(img, x + 90, y + 8, 10, 4, CARAMEL)
+
+
+func big_machine(img: Image, x: int, y: int) -> void:
+	for i in 4:
+		rect(img, x + 30 + i * 18, y, 12, 10, PORCELAIN)
+	rect(img, x + 10, y + 10, 300, 6, STEEL_DARK)
+	rect(img, x + 10, y + 16, 300, 104, STEEL)
+	rect(img, x + 14, y + 20, 4, 96, STEEL_LIGHT)
+	rect(img, x + 10, y + 42, 300, 8, CARAMEL)
+	rect(img, x + 120, y + 22, 80, 14, Color("#2E2622"))
+	text(img, x + 124, y + 26, "BREWTOPIA", CREAM)
+	for gx in [60, 260]:
+		disc(img, x + gx, y + 82, 14, CREAM)
+		disc(img, x + gx, y + 82, 11, PORCELAIN)
+		rect(img, x + gx, y + 72, 1, 10, ESPRESSO)
+	rect(img, x + 140, y + 58, 40, 26, STEEL_DARK)
+	rect(img, x + 140, y + 120, 40, 16, STEEL_DARK)
+	rect(img, x + 136, y + 118, 48, 3, STEEL_LIGHT)
+	rect(img, x + 290, y + 120, 3, 50, STEEL_LIGHT)
+	rect(img, x + 14, y + 120, 20, 90, STEEL_DARK)
+	rect(img, x + 286, y + 120, 20, 90, STEEL_DARK)
+	rect(img, x + 60, y + 196, 200, 10, STEEL_DARK)
+	for gx in range(x + 64, x + 256, 6):
+		rect(img, gx, y + 198, 3, 2, STEEL_LIGHT)
+
+
+## Grind dial, drawn pointing up; the game rotates it.
+func dial() -> void:
+	var img := new_img(40, 40)
+	disc(img, 20, 20, 17, CARAMEL)
+	disc(img, 20, 20, 12, CARAMEL.lightened(0.15))
+	for a in range(0, 360, 30):
+		var p := Vector2(20, 20) + Vector2.from_angle(deg_to_rad(a)) * 15.5
+		img.set_pixel(int(p.x), int(p.y), BEAN)
+	rect(img, 19, 5, 3, 12, ESPRESSO)
+	outline(img)
+	save(img, "dial")
+
+
+func push_button(sprite_name: String, c: Color, w: int, h: int) -> void:
+	for pressed in [false, true]:
+		var img := new_img(w, h)
+		var top := 3 if pressed else 0
+		rect(img, 1, h - 4, w - 2, 4, c.darkened(0.45))
+		rect(img, 1, top, w - 2, h - 4, c.darkened(0.2) if pressed else c)
+		if not pressed:
+			rect(img, 3, 1, w - 6, 2, c.lightened(0.35))
+		outline(img)
+		save(img, sprite_name + ("_pressed" if pressed else ""))
+
+
+## Basket on the left (40 wide), handle to the right, two spouts underneath.
+func portafilter() -> void:
+	var img := new_img(96, 18)
+	rect(img, 0, 0, 40, 12, STEEL)
+	rect(img, 0, 0, 40, 2, STEEL_LIGHT)
+	rect(img, 4, 2, 32, 3, STEEL_DARK)
+	rect(img, 40, 4, 8, 4, STEEL_DARK)
+	rect(img, 48, 3, 48, 6, ESPRESSO)
+	rect(img, 50, 4, 40, 1, BEAN)
+	rect(img, 12, 12, 4, 5, STEEL_DARK)
+	rect(img, 24, 12, 4, 5, STEEL_DARK)
+	outline(img)
+	save(img, "portafilter")
+
+
+## Big cup for the close-up; the game draws the coffee level inside it.
+func big_cup() -> void:
+	var img := new_img(52, 26)
+	rect(img, 0, 0, 44, 26, PORCELAIN)
+	rect(img, 4, 2, 36, 22, Color(0, 0, 0, 0))
+	rect(img, 0, 22, 44, 4, PORCELAIN.darkened(0.08))
+	frame(img, 44, 6, 8, 12, 3, PORCELAIN)
+	outline(img)
+	save(img, "cup_big")
 
 
 # ---------- characters ----------
