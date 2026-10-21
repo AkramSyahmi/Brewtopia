@@ -250,6 +250,59 @@ static func milk(parent: Node3D, pos: Vector3) -> void:
 	top.rotation_degrees = Vector3(0, 0, 0)
 
 
+## Blocky low-poly person, origin at the feet, facing +Z. `look` keys:
+## skin, hair, shirt, pants, hair_style ("short", "bun", "long", "cap"), cap, apron, glasses, beard.
+static func person(parent: Node3D, look: Dictionary) -> Node3D:
+	var p := node(parent)
+	var body := node(p)  # bobbed while walking
+	body.name = "Body"
+	var skin: Color = look.get("skin", Color("#D9A57A"))
+	var hair: Color = look.get("hair", Color("#2A1B14"))
+	var shirt: Color = look.get("shirt", Color("#5B7DB1"))
+	var pants: Color = look.get("pants", Color("#3A3F4E"))
+	for sx in [-0.07, 0.07]:
+		IsoKit.box(body, Vector3(0.12, 0.74, 0.13), Vector3(sx, 0.42, 0), pants)
+		IsoKit.box(body, Vector3(0.13, 0.06, 0.19), Vector3(sx, 0.03, 0.025), BLACK)
+	IsoKit.box(body, Vector3(0.36, 0.56, 0.22), Vector3(0, 1.06, 0), shirt)
+	for sx in [-0.235, 0.235]:
+		IsoKit.box(body, Vector3(0.1, 0.5, 0.11), Vector3(sx, 1.04, 0), shirt)
+		IsoKit.box(body, Vector3(0.09, 0.09, 0.09), Vector3(sx, 0.75, 0), skin)
+	if look.has("apron"):
+		IsoKit.box(body, Vector3(0.3, 0.66, 0.02), Vector3(0, 0.92, 0.12), look.apron)
+	IsoKit.box(body, Vector3(0.12, 0.08, 0.12), Vector3(0, 1.37, 0), skin)  # neck
+	IsoKit.box(body, Vector3(0.27, 0.28, 0.25), Vector3(0, 1.54, 0), skin)  # head
+	for ex in [-0.06, 0.06]:
+		IsoKit.box(body, Vector3(0.04, 0.05, 0.01), Vector3(ex, 1.55, 0.128), BLACK, false, false, false)
+	IsoKit.box(body, Vector3(0.08, 0.015, 0.01), Vector3(0, 1.47, 0.128), Color("#8A4A3A"), false, false, false)
+	if look.get("glasses", false):
+		IsoKit.box(body, Vector3(0.2, 0.06, 0.012), Vector3(0, 1.555, 0.132), Color("#1E1410"), false, false, false)
+	if look.get("beard", false):
+		IsoKit.box(body, Vector3(0.25, 0.1, 0.03), Vector3(0, 1.45, 0.12), hair, false, false, false)
+	match look.get("hair_style", "short"):
+		"cap":
+			var cap: Color = look.get("cap", Color("#C0504D"))
+			IsoKit.box(body, Vector3(0.29, 0.1, 0.27), Vector3(0, 1.71, 0), cap)
+			IsoKit.box(body, Vector3(0.24, 0.025, 0.12), Vector3(0, 1.67, 0.18), cap)
+		_:
+			IsoKit.box(body, Vector3(0.29, 0.09, 0.27), Vector3(0, 1.71, 0), hair)
+			IsoKit.box(body, Vector3(0.29, 0.2, 0.06), Vector3(0, 1.6, -0.11), hair)
+			if look.get("hair_style", "short") == "bun":
+				IsoKit.box(body, Vector3(0.13, 0.12, 0.12), Vector3(0, 1.8, -0.06), hair)
+			elif look.get("hair_style", "short") == "long":
+				IsoKit.box(body, Vector3(0.3, 0.42, 0.08), Vector3(0, 1.42, -0.1), hair)
+	var emote := Label3D.new()
+	emote.name = "Emote"
+	emote.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	emote.font_size = 64
+	emote.pixel_size = 0.004
+	emote.outline_size = 12
+	emote.modulate = Color("#FFE066")
+	emote.position = Vector3(0, 2.05, 0)
+	emote.no_depth_test = true
+	p.add_child(emote)
+	return p
+
+
 static func pitcher(parent: Node3D, pos: Vector3) -> void:
 	IsoKit.cyl(parent, 0.04, 0.1, pos + Vector3(0, 0.05, 0), STEEL, true, false, 0.035)
 	var h := IsoKit.box(parent, Vector3(0.008, 0.05, 0.03), pos + Vector3(0.048, 0.06, 0), STEEL_DARK, true)

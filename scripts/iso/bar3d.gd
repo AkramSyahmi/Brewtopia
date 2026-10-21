@@ -68,6 +68,11 @@ var pf: Node3D
 var tamper: Node3D
 var spots := {}
 var highlight: ShaderMaterial
+var container: SubViewportContainer
+var view := "pov"
+var mentor: Node3D
+var customer: Node3D
+var served_cup: Node3D
 var dose_bubble: Label  # big readable scale readouts floating over the equipment
 var cup_bubble: Label
 
@@ -75,7 +80,7 @@ var cup_bubble: Label
 func _ready() -> void:
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_IGNORE
-	var container := SubViewportContainer.new()
+	container = SubViewportContainer.new()
 	container.stretch = true
 	container.stretch_shrink = PIXEL_SCALE
 	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -124,6 +129,8 @@ func _ready() -> void:
 	set_grind(grind)
 	update_pf()
 	dose_bubble = bubble()
+	mentor = add_person("mentor", CafeRoom.MENTOR_SPOT)
+	mentor.rotation_degrees.y = 25.0
 	cup_bubble = bubble()
 
 
@@ -155,7 +162,7 @@ func show_bubble(l: Label, at: Vector3, grams: float, target: float, extra := ""
 		c = Color("#FF8A7A")
 	l.add_theme_color_override("font_color", c)
 	l.reset_size()
-	var p := camera.unproject_position(at) * PIXEL_SCALE
+	var p := camera.unproject_position(at) * container.stretch_shrink
 	l.position = p - Vector2(l.size.x / 2.0 if centred else 0.0, l.size.y / 2.0)
 	l.show()
 
@@ -175,7 +182,7 @@ func build_room() -> void:
 	sun.light_energy = 0.75
 	sun.light_color = Color("#FFF1DC")
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 6.0
+	sun.directional_shadow_max_distance = 25.0
 	world.add_child(sun)
 	var lamp := OmniLight3D.new()
 	lamp.position = Vector3(0, 1.9, -0.1)
@@ -190,26 +197,124 @@ func build_room() -> void:
 	camera.rotation_degrees = Vector3(EYE_PITCH, 0, 0)
 	world.add_child(camera)
 
-	# back wall with tiles, shelf, counter
-	var wall_mat := StandardMaterial3D.new()
-	wall_mat.albedo_texture = IsoKit.checker(Color("#EFE3CC"), Color("#E6D7BC"))
-	wall_mat.uv1_scale = Vector3(14, 6, 1)
-	wall_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	wall_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	var wall := MeshInstance3D.new()
-	var wm := BoxMesh.new()
-	wm.size = Vector3(4, 2.4, 0.05)
-	wall.mesh = wm
-	wall.material_override = wall_mat
-	wall.position = Vector3(0, 1.2, -0.62)
-	world.add_child(wall)
-	IsoKit.box(world, Vector3(2.4, 0.03, 0.18), Vector3(0, 1.62, -0.52), Color("#8A5634"))
-	for i in 5:
-		IsoKit.box(world, Vector3(0.1, 0.16, 0.08), Vector3(-0.9 + i * 0.22, 1.715, -0.52),
-			[Color("#B63A3A"), Color("#3A5DB6"), Color("#C9A04A"), Color("#B63A3A"), Color("#5E8F5A")][i])
-	IsoKit.box(world, Vector3(3.0, 0.05, 0.8), Vector3(0, COUNTER_Y - 0.025, -0.22), Color("#C7AE90"))
-	IsoKit.box(world, Vector3(2.95, 0.88, 0.75), Vector3(0, 0.46, -0.22), Color("#C4A06E"))
-	IsoKit.box(world, Vector3(3.0, 0.03, 0.03), Vector3(0, COUNTER_Y - 0.06, 0.17), Props.STEEL, true)
+	CafeRoom.build(world)
+
+
+# ---------- views and characters ----------
+
+const ISO_TARGET := Vector3(0.1, 0.6, 1.2)
+const ISO_PITCH := 30.0
+const ISO_YAW := 45.0
+const ISO_DIST := 18.0
+const ISO_FOV := 16.0
+const LOOKS := {
+	"mentor": {"skin": Color("#C68B5E"), "hair": Color("#2A1B14"), "hair_style": "bun",
+		"shirt": Color("#EFE6D8"), "pants": Color("#3A3F4E"), "apron": Color("#8FAE6A")},
+	"student": {"skin": Color("#E2B48A"), "hair_style": "cap", "cap": Color("#C0504D"),
+		"shirt": Color("#5B7DB1"), "pants": Color("#2F3A55")},
+	"office": {"skin": Color("#8D5A3B"), "hair": Color("#1E1410"), "shirt": Color("#E9E4D8"),
+		"pants": Color("#3A3F4E")},
+	"enthusiast": {"skin": Color("#D9A57A"), "hair": Color("#5A4033"), "shirt": Color("#7A4E6E"),
+		"pants": Color("#4A3B30"), "glasses": true, "beard": true},
+}
+
+
+## Moves the camera between the isometric café overview ("iso") and the barista's eyes
+## ("pov"). Brewing input only works in "pov".
+func set_view(v: String, animate := true) -> void:
+	view = v
+	set_hover(null)
+	dose_bubble.hide()
+	cup_bubble.hide()
+	var to_pos := EYE
+	var to_rot := Vector3(EYE_PITCH, 0, 0)
+	var to_fov := 44.0
+	if v == "iso":
+		var p := deg_to_rad(ISO_PITCH)
+		var y := deg_to_rad(ISO_YAW)
+		to_pos = ISO_TARGET + Vector3(sin(y) * cos(p), sin(p), cos(y) * cos(p)) * ISO_DIST
+		to_rot = Vector3(-ISO_PITCH, ISO_YAW, 0)
+		to_fov = ISO_FOV
+	container.stretch_shrink = 2 if v == "iso" else PIXEL_SCALE  # finer pixels for the wide view
+	if not animate:
+		camera.position = to_pos
+		camera.rotation_degrees = to_rot
+		camera.fov = to_fov
+		return
+	var t := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(camera, "position", to_pos, 1.1)
+	t.tween_property(camera, "rotation_degrees", to_rot, 1.1)
+	t.tween_property(camera, "fov", to_fov, 1.1)
+
+
+func add_person(look_name: String, at: Vector3) -> Node3D:
+	var p := Props.person(world, LOOKS[look_name])
+	p.position = at
+	return p
+
+
+## Walks a person along the floor to `to`, facing the way they walk, with a small bob.
+func walk(p: Node3D, to: Vector3, time := 1.6) -> Tween:
+	var d := to - p.position
+	p.rotation_degrees.y = rad_to_deg(atan2(d.x, d.z))
+	var body: Node3D = p.get_node("Body")
+	var bob := create_tween().set_loops(int(time / 0.3))
+	bob.tween_property(body, "position:y", 0.04, 0.15)
+	bob.tween_property(body, "position:y", 0.0, 0.15)
+	var t := create_tween()
+	t.tween_property(p, "position", to, time)
+	return t
+
+
+func customer_enter(look_name: String) -> Tween:
+	if customer:
+		customer.queue_free()
+	customer = add_person(look_name, CafeRoom.DOOR_SPOT)
+	var t := walk(customer, CafeRoom.CUSTOMER_SPOT)
+	t.tween_property(customer, "rotation_degrees:y", 180.0, 0.25)
+	return t
+
+
+func customer_leave() -> Tween:
+	var t := walk(customer, CafeRoom.DOOR_SPOT)
+	var leaving := customer
+	customer = null
+	t.tween_callback(leaving.queue_free)
+	return t
+
+
+## Small hop on whoever is speaking.
+func hop(p: Node3D) -> void:
+	if p == null:
+		return
+	var body: Node3D = p.get_node("Body")
+	var t := create_tween()
+	t.tween_property(body, "position:y", 0.08, 0.08)
+	t.tween_property(body, "position:y", 0.0, 0.12)
+
+
+func emote(p: Node3D, text: String, time := 1.6) -> void:
+	if p == null:
+		return
+	var e: Label3D = p.get_node("Emote")
+	e.text = text
+	var t := create_tween()
+	t.tween_interval(time)
+	t.tween_callback(func(): e.text = "")
+
+
+## The finished drink waiting on the front counter for the customer.
+func show_served_cup() -> void:
+	hide_served_cup()
+	served_cup = Props.cup(world)
+	served_cup.position = CafeRoom.SERVE_SPOT
+	Props.set_cup_level(served_cup, 0.9)
+
+
+func hide_served_cup() -> void:
+	if served_cup:
+		served_cup.queue_free()
+	served_cup = null
 
 
 # ---------- per-frame simulation ----------
@@ -228,11 +333,11 @@ func _process(delta: float) -> void:
 			tamped = false
 			update_pf()
 	(grinder.get_node("LCD") as Label3D).text = "%.1fg" % (dose_g if pf_spot == "fork" else 0.0)
-	if recipe and (grinding or (pf_spot == "fork" and dragging != pf)):
+	if view == "pov" and recipe and (grinding or (pf_spot == "fork" and dragging != pf)):
 		show_bubble(dose_bubble, grinder.to_global(Vector3(0.13, 0.22, 0.1)), dose_g, recipe.dose_g, "", false)
 	else:
 		dose_bubble.hide()
-	if recipe and cup and cup_spot == "tray" and (extracting or cup_yield > 0.0):
+	if view == "pov" and recipe and cup and cup_spot == "tray" and (extracting or cup_yield > 0.0):
 		show_bubble(cup_bubble, machine.to_global(Vector3(0, -0.02, 0.32)), cup_yield,
 			recipe.target_yield_g, "   ·   %d s" % int(sim_time))
 	else:
@@ -326,7 +431,7 @@ func pickable(target: Node3D, item: String, size: Vector3, offset := Vector3.ZER
 
 
 func ray_from(screen_pos: Vector2) -> Array:
-	var p := screen_pos / PIXEL_SCALE
+	var p := screen_pos / container.stretch_shrink
 	return [camera.project_ray_origin(p), camera.project_ray_normal(p)]
 
 
@@ -344,7 +449,7 @@ func on_plane(screen_pos: Vector2, height: float) -> Vector3:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not is_visible_in_tree():
+	if not is_visible_in_tree() or view != "pov":
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:

@@ -1,18 +1,12 @@
 extends Control
 ## Chapter 1 first shift: three scripted orders (GDD 12.2).
-## Per order: customer walks in and orders (counter view) -> the player makes the drink
-## hands-on at the bar (BarStation, barista POV) -> serving at the pass returns to the
-## counter for the score, the mentor's diagnosis and the customer's reaction.
-## Pixel art comes from tools/gen_art.gd; worlds are drawn at 640x360 and scaled x2.
+## Per order: a customer walks into the café and orders (isometric view) -> the camera
+## swoops into the barista's eyes and the player makes the drink hands-on (Bar3D, POV)
+## -> serving swoops back out for the score, the mentor's diagnosis and the reaction.
 
 const SHIFT_PATH := "res://data/orders/ch1_first_shift.json"
 const RECIPE_PATH := "res://data/recipes/%s.json"
-const SPRITE_PATH := "res://assets/sprites/%s.png"
 const START_GRIND := 8  # left coarse by the previous barista, so the player has to adjust
-
-const CUSTOMER_SPOT := Vector2(60, 150)
-const CUP_SPOT := Vector2(297, 217)  # on the machine's drip tray (counter view)
-const SERVE_SPOT := Vector2(118, 217)  # counter in front of the customer
 
 const ESPRESSO := Color("#36251D")
 const CARAMEL := Color("#BE895B")
@@ -35,19 +29,13 @@ var lines: Array = []
 var line_index := 0
 var after_dialogue: Callable
 
-# Counter view
-var counter_world: Node2D
-var customer: Sprite2D
-var mentor_sprite: Sprite2D
-var cup: Sprite2D
-
 var bar: Bar3D
-var fade: ColorRect
 
 # UI
 var header: Label
 var progress: Label
 var hint_button: Button
+var next_button: Button
 var slip: Label
 var strip: Control
 var title: Label
@@ -60,13 +48,12 @@ var tip: Label
 func _ready() -> void:
 	shift = EspressoModel.load_recipe(SHIFT_PATH)  # same JSON loader
 	mouse_filter = MOUSE_FILTER_IGNORE  # let clicks reach the bar's drag and drop
-	build_counter()
 	bar = Bar3D.new()
 	bar.dispense_g_per_s = DISPENSE_G_PER_S
 	bar.sim_speed = SIM_SPEED
-	bar.hide()
 	add_child(bar)
 	bar.set_grind(START_GRIND)
+	bar.set_view("iso", false)
 	bar.changed.connect(refresh_hint)
 	bar.message.connect(func(text):
 		speaker.text = ""
@@ -80,8 +67,12 @@ func current_order() -> Dictionary:
 	return shift.orders[order_index]
 
 
-func tex(sprite_name: String) -> Texture2D:
-	return load(SPRITE_PATH % sprite_name)
+func look_of(role: String) -> String:
+	return shift.sprites[role]
+
+
+func person_of(role: String) -> Node3D:
+	return bar.mentor if role == "MENTOR" else null if role == "PLAYER" else bar.customer
 
 
 func start_order(i: int) -> void:
@@ -92,13 +83,14 @@ func start_order(i: int) -> void:
 	slip.text = "%s\n%s\n%d g in · %d g out\n%d–%d s" % [
 		shift.cast[current_order().customer].to_upper(), recipe.display_name,
 		recipe.dose_g, recipe.target_yield_g, recipe.extraction_time_min_s, recipe.extraction_time_max_s]
-	cup.hide()
-	customer.texture = tex(shift.sprites[current_order().customer])
-	customer.position = CUSTOMER_SPOT - Vector2(140, 0)
-	customer.show()
-	create_tween().tween_property(customer, "position", CUSTOMER_SPOT, 0.8) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	bar.hide_served_cup()
 	bar.start_order(recipe)
+	bar.set_view("iso")
+	strip.hide()
+	speaker.text = ""
+	tip.text = ""
+	await bar.customer_enter(look_of(current_order().customer)).finished
+	bar.emote(bar.customer, "!")
 	say(current_order().intro, func(): show_step(Step.BAR))
 
 
@@ -126,36 +118,31 @@ func show_step(new_step: Step) -> void:
 	for c in controls.get_children():
 		c.queue_free()
 	hint_button.hide()
-	strip.visible = step != Step.BAR
+	strip.visible = step in [Step.RESULT, Step.SUMMARY]
+	next_button.visible = step == Step.DIALOGUE
 
 	match step:
 		Step.DIALOGUE:
-			show_view(counter_world)
+			bar.set_view("iso")
 			var line: Array = lines[line_index]
 			title.text = ""
 			readout.text = ""
 			speaker.text = shift.cast[line[0]]
 			tip.text = line[1]
-			bounce(mentor_sprite if line[0] == "MENTOR" else customer if line[0] != "PLAYER" else null)
-			add_button("Next").pressed.connect(func():
-				line_index += 1
-				if line_index < lines.size():
-					show_step(Step.DIALOGUE)
-				else:
-					after_dialogue.call())
+			bar.hop(person_of(line[0]))
 
 		Step.BAR:
-			show_view(bar)
+			bar.set_view("pov")
 			speaker.text = ""
 			tip.text = ""
 			refresh_hint()
 
 		Step.SUMMARY:
-			show_view(counter_world)
+			bar.set_view("iso")
 			var s := ShiftRewards.summary(scores, shift.wage_rm)
-			customer.hide()
-			cup.hide()
-			mentor_sprite.texture = tex("mentor_happy")
+			bar.hide_served_cup()
+			bar.emote(bar.mentor, "*", 3.0)
+			bar.hop(bar.mentor)
 			title.text = "SHIFT COMPLETE!"
 			readout.text = "Average %d" % s.average
 			progress.text = ""
@@ -164,17 +151,14 @@ func show_step(new_step: Step) -> void:
 				s.orders, s.wage_rm, s.tips_rm, s.xp]
 			add_button("Play again").pressed.connect(func():
 				scores.clear()
-				mentor_sprite.texture = tex("mentor")
 				start_order(0))
 
 
-## The cup reached the pass: score it at the counter.
+## The cup reached the serve tray: swoop out and score it at the front counter.
 func on_served(shot: Dictionary) -> void:
 	show_step(Step.RESULT)
-	show_view(counter_world)
-	cup.texture = tex("cup_full")
-	cup.position = SERVE_SPOT
-	cup.show()
+	bar.set_view("iso")
+	bar.show_served_cup()
 	var r := EspressoModel.evaluate(recipe, shot.dose, shot.grind, shot.yield, shot.tamped)
 	# Accuracy and service are fixed until order variety and timers exist.
 	var score := EspressoModel.order_score(r.quality, 100, 100)
@@ -187,21 +171,20 @@ func on_served(shot: Dictionary) -> void:
 	tip.text = r.tip
 	var who: String = current_order().customer
 	if grade == "Failed Order":
+		bar.emote(bar.customer, "?")
 		add_button("Make it again").pressed.connect(func():
 			say([[who, "Hmm, this isn't right. Could you make it again?"]], func():
-				cup.hide()
+				bar.hide_served_cup()
 				bar.clear_cup()
 				show_step(Step.BAR)))
 		return
 	add_button("Continue").pressed.connect(func():
 		scores.append(score)
-		if grade in ["Perfect Brew", "Great Cup"]:
-			customer.texture = tex(shift.sprites[who] + "_happy")
+		bar.emote(bar.customer, "<3" if grade in ["Perfect Brew", "Great Cup"] else ":)")
 		say([[who, shift.reactions[grade]]], func():
-			cup.hide()
-			var leave := create_tween()
-			leave.tween_property(customer, "position", CUSTOMER_SPOT - Vector2(140, 0), 0.6)
-			await leave.finished
+			bar.hide_served_cup()
+			strip.hide()
+			await bar.customer_leave().finished
 			next_order()))
 
 
@@ -212,56 +195,7 @@ func next_order() -> void:
 		show_step(Step.SUMMARY)
 
 
-# ---------- views ----------
-
-func show_view(view: CanvasItem) -> void:
-	if view.visible:
-		return
-	var t := create_tween()
-	t.tween_property(fade, "color:a", 1.0, 0.15)
-	t.tween_callback(func():
-		counter_world.visible = view == counter_world
-		bar.visible = view == bar)
-	t.tween_property(fade, "color:a", 0.0, 0.2)
-
-
-## Small hop on the speaking character.
-func bounce(who: Sprite2D) -> void:
-	if who == null:
-		return
-	var base_y := who.position.y
-	var t := create_tween()
-	t.tween_property(who, "position:y", base_y - 3, 0.08)
-	t.tween_property(who, "position:y", base_y, 0.12)
-
-
 # ---------- building ----------
-
-func sprite(parent: Node, sprite_name: String, pos: Vector2) -> Sprite2D:
-	var s := Sprite2D.new()
-	s.texture = tex(sprite_name)
-	s.centered = false
-	s.position = pos
-	parent.add_child(s)
-	return s
-
-
-func build_counter() -> void:
-	counter_world = Node2D.new()
-	counter_world.scale = Vector2(2, 2)
-	counter_world.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(counter_world)
-	sprite(counter_world, "cafe_background", Vector2.ZERO)
-	customer = sprite(counter_world, "student", CUSTOMER_SPOT)
-	mentor_sprite = sprite(counter_world, "mentor", Vector2(470, 150))
-	sprite(counter_world, "counter", Vector2.ZERO)
-	sprite(counter_world, "jar_dark", Vector2(132, 212))
-	sprite(counter_world, "jar_light", Vector2(152, 212))
-	sprite(counter_world, "grinder", Vector2(180, 174))
-	sprite(counter_world, "scale", Vector2(216, 224))
-	sprite(counter_world, "machine", Vector2(260, 170))
-	cup = sprite(counter_world, "cup_empty", CUP_SPOT)
-
 
 func panel_style(bg: Color, border: Color) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -322,9 +256,9 @@ func build_ui() -> void:
 	add_child(paper)
 	slip = label(paper, 18, ESPRESSO)
 
-	# Step area (counter view only), on a dark strip
+	# Result / summary strip, on a dark panel
 	strip = PanelContainer.new()
-	strip.add_theme_stylebox_override("panel", panel_style(Color(ESPRESSO, 0.8), Color(ESPRESSO, 0)))
+	strip.add_theme_stylebox_override("panel", panel_style(Color(ESPRESSO, 0.85), Color(ESPRESSO, 0)))
 	strip.position = Vector2(24, 470)
 	strip.custom_minimum_size = Vector2(1232, 116)
 	add_child(strip)
@@ -343,7 +277,9 @@ func build_ui() -> void:
 
 	# Dialogue / mentor box
 	var box := PanelContainer.new()
-	box.add_theme_stylebox_override("panel", panel_style(Color(ESPRESSO, 0.92), CARAMEL))
+	var box_style := panel_style(Color(ESPRESSO, 0.92), CARAMEL)
+	box_style.content_margin_right = 170  # room for the Next button
+	box.add_theme_stylebox_override("panel", box_style)
 	box.position = Vector2(24, 596)
 	box.custom_minimum_size = Vector2(1232, 116)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -355,9 +291,15 @@ func build_ui() -> void:
 	tip = label(talk, 22, CREAM)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
 
-	# Fade layer for view changes
-	fade = ColorRect.new()
-	fade.color = Color(ESPRESSO, 0.0)
-	fade.size = Vector2(1280, 720)
-	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(fade)
+	next_button = Button.new()
+	next_button.text = "Next  >"
+	next_button.position = Vector2(1100, 630)
+	next_button.custom_minimum_size = Vector2(140, 56)
+	next_button.hide()
+	next_button.pressed.connect(func():
+		line_index += 1
+		if line_index < lines.size():
+			show_step(Step.DIALOGUE)
+		else:
+			after_dialogue.call())
+	add_child(next_button)

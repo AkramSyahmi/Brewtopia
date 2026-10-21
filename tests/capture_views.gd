@@ -20,10 +20,10 @@ func shot(name: String, wait := 0.8) -> void:
 
 func run() -> void:
 	out = OS.get_cmdline_user_args()[0]
-	await shot("1_counter")
+	await shot("1_counter", 3.0)
 	shift.show_step(shift.Step.BAR)
 	var bar: Bar3D = shift.bar
-	await shot("2_bar_start")
+	await shot("2_bar_start", 1.6)
 	bar.set_hover(bar.pf)
 	bar.place_pf("fork")
 	bar.grinding = true
@@ -42,5 +42,5 @@ func run() -> void:
 	bar.toggle_brew()
 	bar.cup.global_position = bar.SERVE_AT
 	bar.drop_cup()
-	await shot("5_result")
+	await shot("5_result", 1.8)
 	quit()
