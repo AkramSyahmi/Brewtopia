@@ -13,7 +13,6 @@ const START_GRIND := 8  # left coarse by the previous barista, so the player has
 const CUSTOMER_SPOT := Vector2(60, 150)
 const CUP_SPOT := Vector2(297, 217)  # on the machine's drip tray (counter view)
 const SERVE_SPOT := Vector2(118, 217)  # counter in front of the customer
-const BAR_Y := -16.0  # real px; keeps the bar's counter edge above the dialogue box
 
 const ESPRESSO := Color("#36251D")
 const CARAMEL := Color("#BE895B")
@@ -42,7 +41,7 @@ var customer: Sprite2D
 var mentor_sprite: Sprite2D
 var cup: Sprite2D
 
-var bar: BarStation
+var bar: Bar3D
 var fade: ColorRect
 
 # UI
@@ -62,9 +61,7 @@ func _ready() -> void:
 	shift = EspressoModel.load_recipe(SHIFT_PATH)  # same JSON loader
 	mouse_filter = MOUSE_FILTER_IGNORE  # let clicks reach the bar's drag and drop
 	build_counter()
-	bar = BarStation.new()
-	bar.scale = Vector2(2, 2)
-	bar.position.y = BAR_Y
+	bar = Bar3D.new()
 	bar.dispense_g_per_s = DISPENSE_G_PER_S
 	bar.sim_speed = SIM_SPEED
 	bar.hide()
