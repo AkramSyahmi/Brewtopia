@@ -28,6 +28,12 @@ var save: Dictionary
 var order_index := 0
 var recipe: Dictionary  # current order's recipe with its overrides applied
 var scores: Array[int] = []
+var services: Array[float] = []  # patience left when each drink was served (0..1)
+var patience := 1.0
+var waiting := false  # the customer is waiting for their drink (patience drains)
+
+## Seconds a customer waits before their patience runs out.
+const PATIENCE_S := 150.0
 var step := Step.DIALOGUE
 
 var lines: Array = []
@@ -48,7 +54,7 @@ var money_label: Label
 var hint_button: Button
 var progress: Label
 var next_button: Button
-var choice_box: HBoxContainer
+var choice_box: VBoxContainer
 var slip: Label
 var strip: Control
 var title: Label
@@ -108,6 +114,7 @@ func start_order(i: int) -> void:
 	slip.text = order_slip()
 	bar.hide_served_cup()
 	bar.set_happy(false)
+	bar.hide_order()
 	station.start_order(recipe)
 	show_cafe()
 	strip.hide()
@@ -117,7 +124,13 @@ func start_order(i: int) -> void:
 	refresh_hud()
 	await bar.customer_enter(look_of(current_order().customer)).finished
 	bar.emote(bar.customer, "!")
-	say(current_order().intro, func(): show_step(Step.BAR))
+	say(current_order().intro, func():
+		bar.show_order(recipe)
+		patience = 1.0
+		waiting = true
+		show_step(Step.BAR))
+	var nxt := order_index + 1
+	bar.show_queue(look_of(shift.orders[nxt].customer) if nxt < shift.orders.size() else "")
 
 
 func order_slip() -> String:
@@ -202,7 +215,10 @@ func show_step(new_step: Step) -> void:
 			show_cafe()
 			talk_box.hide()
 			var s := ShiftRewards.summary(scores, shift.wage_rm)
-			var tips_rm := roundi(s.tips_rm * (1.0 + 0.25 * save.upgrades.tip_jar))
+			var tips_raw := 0.0  # slow service shrinks the tip
+			for k in scores.size():
+				tips_raw += ShiftRewards.tip_rm(scores[k]) * services[k]
+			var tips_rm := roundi(tips_raw * (1.0 + 0.25 * save.upgrades.tip_jar))
 			var earned: int = s.wage_rm + tips_rm
 			save.money += earned
 			save.xp += s.xp
@@ -221,6 +237,7 @@ func show_step(new_step: Step) -> void:
 				save.day += 1
 				SaveGame.write(save)
 				scores.clear()
+				services.clear()
 				bar.set_mentor_happy(false)
 				start_order(0))
 
@@ -236,7 +253,8 @@ func on_served(drink: Dictionary) -> void:
 		drink.dose, drink.yield, drink.time, drink.grind, "" if drink.tamped else " · not tamped"]
 	if drink.milk_temp >= 0.0:
 		details += " · milk %d°C" % roundi(drink.milk_temp)
-	title.text = "RESULT  ·  quality %d · accuracy %d  ·  %s" % [r.quality, r.accuracy, details]
+	waiting = false
+	title.text = "RESULT  ·  quality %d · accuracy %d · service %d%%  ·  %s" % [r.quality, r.accuracy, roundi(patience * 100), details]
 	readout.text = "%d  %s" % [r.score, r.grade]
 	# Diagnosis always shows, whatever the assist level: it is the core lesson.
 	speaker.text = shift.cast.MENTOR
@@ -253,6 +271,7 @@ func on_served(drink: Dictionary) -> void:
 		return
 	add_button("Continue").pressed.connect(func():
 		scores.append(r.score)
+		services.append(patience)
 		refresh_hud()
 		var great: bool = r.grade in ["Perfect Brew", "Great Cup"]
 		bar.set_happy(great)
@@ -407,7 +426,7 @@ func build_ui() -> void:
 	row.add_child(controls)
 
 	# Speech bubble (counter) / one-line tip bar (station)
-	bubble_style = panel_style(PAPER, Color("#65422F"), 22)
+	bubble_style = panel_style(Color("#4A4553"), Color("#2A2430"), 14)  # grey speech bubble (reference style)
 	bubble_style.content_margin_right = 170
 	bar_style = panel_style(Color(ESPRESSO, 0.92), CARAMEL)
 	bar_style.content_margin_top = 6
@@ -428,9 +447,9 @@ func build_ui() -> void:
 	next_button.hide()
 	next_button.pressed.connect(advance)
 	add_child(next_button)
-	choice_box = HBoxContainer.new()
-	choice_box.position = Vector2(300, 196)
-	choice_box.add_theme_constant_override("separation", 16)
+	choice_box = VBoxContainer.new()
+	choice_box.position = Vector2(560, 196)
+	choice_box.add_theme_constant_override("separation", 8)
 	add_child(choice_box)
 
 	book = RecipeBook.new()
@@ -447,13 +466,13 @@ func show_cafe() -> void:
 	bar.show()
 	# Speech bubble near the top, above the people's heads (GCGC style).
 	talk_box.add_theme_stylebox_override("panel", bubble_style)
-	talk_box.position = Vector2(240, 60)
-	talk_box.custom_minimum_size = Vector2(800, 120)
+	talk_box.position = Vector2(560, 50)
+	talk_box.custom_minimum_size = Vector2(520, 130)
 	talk_box.reset_size()
-	next_button.position = Vector2(880, 114)
+	next_button.position = Vector2(930, 118)
 	speaker.show()
 	tip.add_theme_font_size_override("font_size", 22)
-	tip.add_theme_color_override("font_color", ESPRESSO)
+	tip.add_theme_color_override("font_color", CREAM)
 
 
 func show_station() -> void:
@@ -467,3 +486,9 @@ func show_station() -> void:
 	talk_box.position = Vector2(0, 688)
 	talk_box.custom_minimum_size = Vector2(1280, 0)
 	talk_box.reset_size()
+
+
+func _process(delta: float) -> void:
+	if waiting:
+		patience = maxf(patience - delta / PATIENCE_S, 0.0)
+		bar.set_patience(patience)

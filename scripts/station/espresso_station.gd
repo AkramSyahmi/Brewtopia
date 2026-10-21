@@ -127,6 +127,7 @@ func _ready() -> void:
 	world = Node2D.new()
 	world.scale = Vector2(SCALE, SCALE)
 	world.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	world.modulate = CounterScreen.EVENING  # same warm evening light as the counter
 	add_child(world)
 	build_espresso_page()
 	build_topping_page()
@@ -212,14 +213,14 @@ func build_topping_page() -> void:
 	for i in SYRUPS.size():
 		sprite("syrup_" + SYRUPS[i], Vector2(PAGE_W, 0) + SYRUP_AT + Vector2(i * 80, 0))
 		world_label(SYRUPS[i].replace("_", " ").capitalize(), Vector2(PAGE_W, 0) + SYRUP_AT + Vector2(i * 80 - 6, 112),
-			8, Color("#65422F"))
+			8, Color("#F5E7CA"))
 	for i in TOPPINGS.size():
 		sprite("topping_" + TOPPINGS[i], Vector2(PAGE_W, 0) + TOPPING_AT + Vector2(i * 80, 0))
 		world_label(TOPPINGS[i].replace("_", " ").capitalize(), Vector2(PAGE_W, 0) + TOPPING_AT + Vector2(i * 80, 54),
-			8, Color("#65422F"))
+			8, Color("#F5E7CA"))
 	dashed(Rect2(SERVE2_RECT.position + Vector2(PAGE_W, 0), SERVE2_RECT.size), Color("#C9A27E"))
 	world_label("SERVE", SERVE2_RECT.position + Vector2(PAGE_W + 44, 60), 10, Color("#C9A27E"))
-	add_ins = world_label("", Vector2(PAGE_W + 250, 190), 9, Color("#36251D"))
+	add_ins = world_label("", Vector2(PAGE_W + 250, 190), 9, Color("#F5E7CA"))
 
 
 ## GCGC-style timing bar: the marker shows the yield, stop it in the green zone.
@@ -253,7 +254,7 @@ func build_grind_buttons() -> void:
 	box.add_child(minus)
 	grind_label = Label.new()
 	grind_label.add_theme_font_size_override("font_size", 18)
-	grind_label.add_theme_color_override("font_color", Color("#36251D"))
+	grind_label.add_theme_color_override("font_color", Color("#F5E7CA"))
 	grind_label.custom_minimum_size = Vector2(70, 34)
 	grind_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	grind_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

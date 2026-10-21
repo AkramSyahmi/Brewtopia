@@ -40,8 +40,6 @@ func _initialize() -> void:
 		["topping_cream", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#FBF6EC"))],
 		["topping_choc_chips", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#4A2614"))],
 		["topping_cinnamon", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#A0623A"), false)],
-		["counter_bg", Vector2i(640, 360), cafe_interior, {"pitch": -6.0, "zoom": 0.86}],
-		["counter_front", Vector2i(640, 120), front_counter, {"pitch": -22.0, "zoom": 0.9}],
 	]
 	for who in Bar3D.LOOKS:
 		for happy in [false, true]:

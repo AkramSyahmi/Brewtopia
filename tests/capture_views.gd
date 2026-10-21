@@ -22,6 +22,7 @@ func shot(name: String, wait := 0.8) -> void:
 func run() -> void:
 	out = OS.get_cmdline_user_args()[0]
 	await shot("1_counter", 2.5)
+	shift.bar.show_order(shift.recipe)
 	shift.advance()
 	await shot("2_choices")
 	shift.start_order(3)
