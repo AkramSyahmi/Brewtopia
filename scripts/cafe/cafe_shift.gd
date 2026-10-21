@@ -29,7 +29,8 @@ var lines: Array = []
 var line_index := 0
 var after_dialogue: Callable
 
-var bar: Bar3D
+var bar: Bar3D  # café overview + customers (to be redone in 2D)
+var station: EspressoStation  # where drinks are made
 
 # UI
 var header: Label
@@ -43,22 +44,26 @@ var readout: Label
 var controls: HBoxContainer
 var speaker: Label
 var tip: Label
+var talk_box: PanelContainer
 
 
 func _ready() -> void:
 	shift = EspressoModel.load_recipe(SHIFT_PATH)  # same JSON loader
 	mouse_filter = MOUSE_FILTER_IGNORE  # let clicks reach the bar's drag and drop
 	bar = Bar3D.new()
-	bar.dispense_g_per_s = DISPENSE_G_PER_S
-	bar.sim_speed = SIM_SPEED
 	add_child(bar)
-	bar.set_grind(START_GRIND)
+	station = EspressoStation.new()
+	station.dispense_g_per_s = DISPENSE_G_PER_S
+	station.sim_speed = SIM_SPEED
+	add_child(station)
+	station.hide()
+	station.set_grind(START_GRIND)
 	bar.set_view("iso", false)
-	bar.changed.connect(refresh_hint)
-	bar.message.connect(func(text):
+	station.changed.connect(refresh_hint)
+	station.message.connect(func(text):
 		speaker.text = ""
 		tip.text = text)
-	bar.served.connect(on_served)
+	station.served.connect(on_served)
 	build_ui()
 	start_order(0)
 
@@ -84,8 +89,8 @@ func start_order(i: int) -> void:
 		shift.cast[current_order().customer].to_upper(), recipe.display_name,
 		recipe.dose_g, recipe.target_yield_g, recipe.extraction_time_min_s, recipe.extraction_time_max_s]
 	bar.hide_served_cup()
-	bar.start_order(recipe)
-	bar.set_view("iso")
+	station.start_order(recipe)
+	show_cafe()
 	strip.hide()
 	speaker.text = ""
 	tip.text = ""
@@ -110,7 +115,7 @@ func refresh_hint() -> void:
 	hint_button.visible = current_order().assist == "hints"
 	if current_order().assist == "full":
 		speaker.text = shift.cast.MENTOR
-		tip.text = bar.next_hint()
+		tip.text = station.next_hint()
 
 
 func show_step(new_step: Step) -> void:
@@ -123,7 +128,7 @@ func show_step(new_step: Step) -> void:
 
 	match step:
 		Step.DIALOGUE:
-			bar.set_view("iso")
+			show_cafe()
 			var line: Array = lines[line_index]
 			title.text = ""
 			readout.text = ""
@@ -132,13 +137,13 @@ func show_step(new_step: Step) -> void:
 			bar.hop(person_of(line[0]))
 
 		Step.BAR:
-			bar.set_view("pov")
+			show_station()
 			speaker.text = ""
 			tip.text = ""
 			refresh_hint()
 
 		Step.SUMMARY:
-			bar.set_view("iso")
+			show_cafe()
 			var s := ShiftRewards.summary(scores, shift.wage_rm)
 			bar.hide_served_cup()
 			bar.emote(bar.mentor, "*", 3.0)
@@ -157,7 +162,7 @@ func show_step(new_step: Step) -> void:
 ## The cup reached the serve tray: swoop out and score it at the front counter.
 func on_served(shot: Dictionary) -> void:
 	show_step(Step.RESULT)
-	bar.set_view("iso")
+	show_cafe()
 	bar.show_served_cup()
 	var r := EspressoModel.evaluate(recipe, shot.dose, shot.grind, shot.yield, shot.tamped)
 	# Accuracy and service are fixed until order variety and timers exist.
@@ -175,7 +180,7 @@ func on_served(shot: Dictionary) -> void:
 		add_button("Make it again").pressed.connect(func():
 			say([[who, "Hmm, this isn't right. Could you make it again?"]], func():
 				bar.hide_served_cup()
-				bar.clear_cup()
+				station.clear_cup()
 				show_step(Step.BAR)))
 		return
 	add_button("Continue").pressed.connect(func():
@@ -243,7 +248,7 @@ func build_ui() -> void:
 	hint_button.hide()
 	hint_button.pressed.connect(func():
 		speaker.text = shift.cast.MENTOR
-		tip.text = bar.next_hint())
+		tip.text = station.next_hint())
 	bar_row.add_child(hint_button)
 	progress = label(bar_row, 20, CARAMEL)
 
@@ -277,8 +282,11 @@ func build_ui() -> void:
 
 	# Dialogue / mentor box
 	var box := PanelContainer.new()
+	talk_box = box
 	var box_style := panel_style(Color(ESPRESSO, 0.92), CARAMEL)
 	box_style.content_margin_right = 170  # room for the Next button
+	box_style.content_margin_top = 8
+	box_style.content_margin_bottom = 8
 	box.add_theme_stylebox_override("panel", box_style)
 	box.position = Vector2(24, 596)
 	box.custom_minimum_size = Vector2(1232, 116)
@@ -303,3 +311,27 @@ func build_ui() -> void:
 		else:
 			after_dialogue.call())
 	add_child(next_button)
+
+
+func show_cafe() -> void:
+	station.hide()
+	bar.show()
+	bar.set_view("iso", false)
+	talk_box.position = Vector2(24, 596)  # dialogue at the bottom
+	talk_box.custom_minimum_size = Vector2(1232, 116)
+	(talk_box.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 170  # Next button
+	talk_box.reset_size()
+	speaker.show()
+	tip.add_theme_font_size_override("font_size", 22)
+
+
+func show_station() -> void:
+	bar.hide()
+	station.show()
+	# One-line tip bar along the bottom edge, out of the way of the equipment.
+	speaker.hide()
+	tip.add_theme_font_size_override("font_size", 16)
+	(talk_box.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 14
+	talk_box.position = Vector2(0, 686)
+	talk_box.custom_minimum_size = Vector2(1280, 0)
+	talk_box.reset_size()

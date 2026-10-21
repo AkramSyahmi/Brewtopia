@@ -250,6 +250,88 @@ static func milk(parent: Node3D, pos: Vector3) -> void:
 	top.rotation_degrees = Vector3(0, 0, 0)
 
 
+## Two-group espresso machine without cups or portafilters (sprite version).
+static func machine2(parent: Node3D) -> Node3D:
+	var m := node(parent)
+	IsoKit.box(m, Vector3(0.74, 0.05, 0.46), Vector3(0, 0.025, 0), CREAM)  # plinth
+	IsoKit.box(m, Vector3(0.68, 0.24, 0.4), Vector3(0, 0.45, -0.02), SAGE)  # body
+	IsoKit.box(m, Vector3(0.6, 0.1, 0.01), Vector3(0, 0.46, 0.185), Color("#B9CC96"))  # panel
+	for gx in [-0.2, 0.0, 0.2]:
+		var g := IsoKit.cyl(m, 0.045 if gx == 0.0 else 0.032, 0.015, Vector3(gx, 0.46, 0.19), Color("#5E8F5A"))
+		g.rotation_degrees = FACE_Z
+		var face := IsoKit.cyl(m, 0.035 if gx == 0.0 else 0.022, 0.006, Vector3(gx, 0.46, 0.2),
+			PORCELAIN if gx == 0.0 else STEEL_DARK, gx != 0.0)
+		face.rotation_degrees = FACE_Z
+	IsoKit.box(m, Vector3(0.006, 0.03, 0.004), Vector3(0.008, 0.47, 0.205), BLACK, false, false, false)
+	for side in [-1.0, 1.0]:  # cup rail on top
+		IsoKit.box(m, Vector3(0.02, 0.06, 0.38), Vector3(side * 0.33, 0.6, -0.02), STEEL, true)
+	IsoKit.box(m, Vector3(0.64, 0.02, 0.36), Vector3(0, 0.58, -0.02), STEEL_DARK, true)
+	IsoKit.box(m, Vector3(0.6, 0.27, 0.01), Vector3(0, 0.2, 0.05), Color("#6A5A50"))  # brew bay
+	for side in [-1.0, 1.0]:  # side pillars down to the drip tray
+		IsoKit.box(m, Vector3(0.04, 0.27, 0.36), Vector3(side * 0.32, 0.2, -0.02), SAGE)
+	for gx in [-0.16, 0.16]:
+		IsoKit.cyl(m, 0.06, 0.02, Vector3(gx, 0.32, 0.12), STEEL_DARK, true)
+		IsoKit.cyl(m, 0.05, 0.05, Vector3(gx, 0.285, 0.12), STEEL, true)
+		IsoKit.cyl(m, 0.012, 0.02, Vector3(gx, 0.25, 0.12), Color("#5E8F5A"))
+		IsoKit.box(m, Vector3(0.14, 0.015, 0.13), Vector3(gx, 0.075, 0.14), STEEL_DARK, true)  # scale pad
+		IsoKit.box(m, Vector3(0.1, 0.02, 0.004), Vector3(gx, 0.066, 0.208), Color("#7C8A80"), false, false, false)
+	IsoKit.box(m, Vector3(0.66, 0.035, 0.2), Vector3(0, 0.05, 0.14), STEEL, true)  # drip tray
+	var wand := IsoKit.cyl(m, 0.008, 0.22, Vector3(0.38, 0.33, 0.12), STEEL, true)
+	wand.rotation_degrees = Vector3(0, 0, -20)
+	return m
+
+
+static func shot_glass(parent: Node3D) -> Node3D:
+	var g := node(parent)
+	IsoKit.cyl(g, 0.03, 0.07, Vector3(0, 0.035, 0), Color("#CFE0E6"), false, false, 0.036)
+	IsoKit.cyl(g, 0.026, 0.005, Vector3(0, 0.004, 0), Color("#AFC4CC"))
+	return g
+
+
+static func milk_fridge(parent: Node3D) -> Node3D:
+	var f := node(parent)
+	IsoKit.box(f, Vector3(0.3, 1.0, 0.3), Vector3(0, 0.5, 0), STEEL, true)
+	IsoKit.box(f, Vector3(0.24, 0.6, 0.01), Vector3(0, 0.6, 0.155), Color("#DDE9EE"))
+	for row in 2:
+		for i in 2:
+			var x := -0.06 + i * 0.12
+			var y := 0.38 + row * 0.3
+			IsoKit.box(f, Vector3(0.08, 0.16, 0.02), Vector3(x, y + 0.08, 0.16), Color("#F7F3EE"))
+			IsoKit.box(f, Vector3(0.082, 0.05, 0.022), Vector3(x, y + 0.06, 0.16), Color("#C8463C"))
+	IsoKit.box(f, Vector3(0.24, 0.22, 0.01), Vector3(0, 0.16, 0.155), Color("#A9DCEA"))  # ice bin
+	return f
+
+
+static func bean_bag(parent: Node3D) -> Node3D:
+	var b := node(parent)
+	IsoKit.box(b, Vector3(0.14, 0.18, 0.08), Vector3(0, 0.09, 0), Color("#C9A26E"))
+	IsoKit.box(b, Vector3(0.14, 0.04, 0.05), Vector3(0, 0.2, -0.01), Color("#B48C58"))
+	IsoKit.box(b, Vector3(0.08, 0.07, 0.004), Vector3(0, 0.1, 0.042), CREAM)
+	IsoKit.sphere(b, 0.018, Vector3(0, 0.1, 0.046), Color("#6B3A20"))
+	return b
+
+
+static func pitcher_rack(parent: Node3D) -> Node3D:
+	var r := node(parent)
+	IsoKit.box(r, Vector3(0.24, 0.02, 0.2), Vector3(0, 0.01, 0), BLACK)
+	for i in 2:
+		for k in 2:
+			pitcher(r, Vector3(-0.055 + i * 0.11, 0.02 + k * 0.11, -0.03 + k * 0.04))
+	return r
+
+
+static func cups_rack(parent: Node3D) -> Node3D:
+	var r := node(parent)
+	IsoKit.box(r, Vector3(0.62, 0.015, 0.2), Vector3(0, 0.0075, 0), STEEL_DARK, true)
+	for i in 4:
+		var x := -0.25 + i * 0.09
+		IsoKit.cyl(r, 0.032, 0.07, Vector3(x, 0.05, 0), PORCELAIN, false, false, 0.045)
+	for i in 4:
+		var x := 0.1 + i * 0.055
+		IsoKit.cyl(r, 0.022, 0.07, Vector3(x, 0.05, 0.02), Color("#CFE0E6"), false, false, 0.027)
+	return r
+
+
 ## Blocky low-poly person, origin at the feet, facing +Z. `look` keys:
 ## skin, hair, shirt, pants, hair_style ("short", "bun", "long", "cap"), cap, apron, glasses, beard.
 static func person(parent: Node3D, look: Dictionary) -> Node3D:
