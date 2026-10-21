@@ -1,0 +1,56 @@
+{
+  "shift_id": "ch1_first_shift",
+  "title": "DAY 01 · FIRST SHIFT",
+  "wage_rm": 40,
+  "cast": {
+    "PLAYER": "You",
+    "MENTOR": "Mentor",
+    "STUDENT_REGULAR": "Student",
+    "CUSTOMER": "Customer",
+    "COFFEE_ENTHUSIAST": "Coffee Lover"
+  },
+  "orders": [
+    {
+      "customer": "STUDENT_REGULAR",
+      "recipe": "double_espresso_training",
+      "assist": "full",
+      "intro": [
+        ["MENTOR", "First shift? Welcome behind the counter. This machine might look intimidating, but we'll take it one step at a time."],
+        ["PLAYER", "I know how to drink coffee. Making it is a different story."],
+        ["MENTOR", "Good. That means you're ready to learn. Here comes our first customer."],
+        ["STUDENT_REGULAR", "Hi! One double espresso, please. I have a class in twenty minutes."],
+        ["MENTOR", "Weigh the coffee first, then we'll check the grinder. Someone left it on a coarse setting."]
+      ]
+    },
+    {
+      "customer": "CUSTOMER",
+      "recipe": "double_espresso_training",
+      "assist": "hints",
+      "intro": [
+        ["CUSTOMER", "Morning. Double espresso, thanks."],
+        ["MENTOR", "Your turn to lead. Tap Hint if you get stuck."]
+      ]
+    },
+    {
+      "customer": "COFFEE_ENTHUSIAST",
+      "recipe": "double_espresso_training",
+      "assist": "none",
+      "recipe_overrides": {
+        "display_name": "Double Espresso (kaw)",
+        "target_yield_g": 30,
+        "extraction_time_min_s": 20,
+        "extraction_time_max_s": 25
+      },
+      "intro": [
+        ["COFFEE_ENTHUSIAST", "Double espresso, but make it kaw. Stronger, shorter shot."],
+        ["MENTOR", "Kaw means a stronger cup. Same dose, but stop the shot earlier, around 30 g. You've got this."]
+      ]
+    }
+  ],
+  "reactions": {
+    "Perfect Brew": "Wow. This is exactly how I like it!",
+    "Great Cup": "Really nice. Thank you!",
+    "Good Effort": "Not bad. Thanks.",
+    "Needs Practice": "Hmm... it's okay, I guess."
+  }
+}

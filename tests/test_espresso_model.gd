@@ -2,6 +2,7 @@ extends SceneTree
 ## Run: Godot_console.exe --headless --path . --script res://tests/test_espresso_model.gd
 
 const Model = preload("res://scripts/brewing/espresso_model.gd")
+const Rewards = preload("res://scripts/economy/shift_rewards.gd")
 
 var failures := 0
 
@@ -29,6 +30,24 @@ func _init() -> void:
 	check(Model.evaluate(r, 18, 9, 36).quality < nominal.quality, "coarse grind scores lower")
 	check(Model.evaluate(r, 17.4, 6, 35).quality == Model.evaluate(r, 17.4, 6, 35).quality, "deterministic")
 	check(Model.order_score(80, 100, 70) == 83, "GDD 7.1 example = 83")
+
+	# Order 3 "kaw" override: shorter 30 g shot with matching time window.
+	var kaw := r.duplicate()
+	kaw.merge({"target_yield_g": 30, "extraction_time_min_s": 20, "extraction_time_max_s": 25}, true)
+	check(Model.evaluate(kaw, 18, 5, 30).grade == "Perfect Brew", "kaw shot at 30 g is perfect")
+	check(Model.evaluate(kaw, 18, 5, 36).tip.contains("too long"), "kaw shot at 36 g ran too long")
+
+	var s := Rewards.summary([95, 80, 50], 40)
+	check(s.tips_rm == 8 and s.average == 75 and s.xp == 22 and s.wage_rm == 40, "shift summary %s" % s)
+
+	var shift := Model.load_recipe("res://data/orders/ch1_first_shift.json")
+	check(shift.orders.size() == 3, "shift has 3 orders")
+	for o in shift.orders:
+		check(shift.cast.has(o.customer), "cast has " + o.customer)
+		for line in o.intro:
+			check(shift.cast.has(line[0]), "cast has speaker " + line[0])
+	for g in ["Perfect Brew", "Great Cup", "Good Effort", "Needs Practice"]:
+		check(shift.reactions.has(g), "reaction for " + g)
 
 	print("PASS" if failures == 0 else "%d FAILED" % failures)
 	quit(failures)
