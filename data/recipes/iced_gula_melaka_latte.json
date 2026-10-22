@@ -1,0 +1,17 @@
+{
+  "recipe_id": "iced_gula_melaka_latte",
+  "display_name": "Iced Gula Melaka Latte",
+  "unlock_level": 3,
+  "riddles": ["Cold, milky and sweet with palm sugar. Panas gila today!", "Iced coffee, sweet the Malaysian way. Gula Melaka."],
+  "cup": "iced",
+  "ice": true,
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 0, "temp_max": 10},
+  "syrups": {"gula_melaka": 2},
+  "ingredients": ["18 g ground coffee", "36 g espresso", "A scoop of ice", "Cold milk", "2 pumps gula melaka (palm sugar) syrup"],
+  "steps": "Make an iced latte: ice in a plastic cup, a double espresso, then cold milk from the fridge. Take it to the topping station and add 2 pumps of gula melaka syrup."
+}

@@ -1,0 +1,17 @@
+{
+  "recipe_id": "mocha",
+  "display_name": "Mocha",
+  "unlock_level": 3,
+  "riddles": ["Coffee and chocolate together, hot, with cream on top!", "Something like hot chocolate, but with coffee. And whipped cream."],
+  "cup": "cup",
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 60, "temp_max": 65, "foam_min": 0.25, "foam_max": 0.4},
+  "syrups": {"chocolate": 2},
+  "toppings": ["cream"],
+  "ingredients": ["18 g ground coffee", "36 g espresso", "Steamed milk, 60–65°C", "2 pumps chocolate syrup", "Whipped cream on top"],
+  "steps": "Make a latte, then at the topping station add 2 pumps of chocolate syrup and finish with whipped cream."
+}

@@ -1,0 +1,16 @@
+{
+  "recipe_id": "iced_latte",
+  "display_name": "Iced Latte",
+  "unlock_level": 2,
+  "riddles": ["Something cold and milky. No sugar.", "Cold coffee with milk and ice, please. Plain."],
+  "cup": "iced",
+  "ice": true,
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 0, "temp_max": 10},
+  "ingredients": ["18 g ground coffee", "36 g espresso", "A scoop of ice", "Cold milk straight from the fridge"],
+  "steps": "Take a plastic cup from the stack left of the machine and drop it on the ice bin. Pull a double espresso into it, then fill the pitcher at the fridge and pour the cold milk straight in. Don't steam it!"
+}

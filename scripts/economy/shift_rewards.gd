@@ -21,5 +21,5 @@ static func summary(scores: Array, wage_rm: int) -> Dictionary:
 		"average": roundi(float(total) / maxi(scores.size(), 1)),
 		"wage_rm": wage_rm,
 		"tips_rm": tips,
-		"xp": int(total / 10.0),
+		"xp": int(total / 5.0),  # about one level per day of good service
 	}

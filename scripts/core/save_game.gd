@@ -4,7 +4,7 @@ extends RefCounted
 ## upgrade levels. Missing or broken saves fall back to a fresh game.
 
 const PATH := "user://brewtopia_save.json"
-const XP_PER_LEVEL := 100
+const XP_PER_LEVEL := 60  # about one level per day early on (recipes unlock by level)
 
 ## Upgrades bought with wages (GCGC-style machine stats). Each has 3 levels.
 const UPGRADES := {
@@ -17,8 +17,20 @@ const UPGRADES := {
 }
 
 
+## Café decorations: each one shows up in the café and makes customers tip more.
+const DECOR := {
+	"plants": {"name": "Potted Plant", "desc": "A big leafy plant by the window.", "cost": 40},
+	"lamps": {"name": "Pendant Lamps", "desc": "Warm lamps over the counter.", "cost": 60},
+	"batik": {"name": "Batik Wall Art", "desc": "A colourful batik panel on the wall.", "cost": 80},
+	"bookshelf": {"name": "Book Corner", "desc": "A shelf of books for regulars.", "cost": 100},
+	"neon": {"name": "Neon Sign", "desc": "A glowing BREWTOPIA sign.", "cost": 150},
+}
+const DECOR_TIP_BONUS := 0.05  # +5% tips per decoration
+
+
 static func fresh() -> Dictionary:
-	return {"money": 0, "xp": 0, "day": 1, "upgrades": {"shot_timer": 0, "steam_control": 0, "tip_jar": 0}}
+	return {"money": 0, "xp": 0, "day": 1, "upgrades": {"shot_timer": 0, "steam_control": 0, "tip_jar": 0},
+		"friends": {}, "story_seen": {}, "decor": [], "recipes_seen": []}
 
 
 static func load_save() -> Dictionary:
@@ -31,8 +43,24 @@ static func load_save() -> Dictionary:
 			var ups: Dictionary = parsed.get("upgrades", {}) if parsed.get("upgrades") is Dictionary else {}
 			for u in UPGRADES:
 				data.upgrades[u] = clampi(int(ups.get(u, 0)), 0, 3)
+			for k in ["friends", "story_seen"]:  # {role: int}
+				if parsed.get(k) is Dictionary:
+					for role in parsed[k]:
+						data[k][str(role)] = maxi(int(parsed[k][role]), 0)
+			if parsed.get("decor") is Array:
+				data.decor = parsed.decor.filter(func(d): return DECOR.has(d))
+			if parsed.get("recipes_seen") is Array:
+				data.recipes_seen = parsed.recipes_seen.map(func(r): return str(r))
 	data.day = maxi(data.day, 1)
 	return data
+
+
+static func buy_decor(data: Dictionary, id: String) -> bool:
+	if not DECOR.has(id) or id in data.decor or data.money < DECOR[id].cost:
+		return false
+	data.money -= DECOR[id].cost
+	data.decor.append(id)
+	return true
 
 
 ## Writes to a temp file first, then swaps it in, so a crash can't corrupt the save.

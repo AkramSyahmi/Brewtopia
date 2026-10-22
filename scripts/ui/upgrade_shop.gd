@@ -1,13 +1,18 @@
 class_name UpgradeShop
 extends PanelContainer
-## Upgrade shop overlay (GCGC style): each upgrade shows its level bar, what it does and
-## the price of the next level. Buying spends money from the save and writes it.
+## Shop overlay (GCGC style) with two tabs:
+##  - Upgrades: each machine upgrade shows its level bar, what it does and the next price.
+##  - Decor: café decorations; each shows up in the café and adds 5% to tips.
+## Buying spends money from the save and writes it.
 
 signal bought
 
 var save: Dictionary
 var rows := {}
+var decor_rows := {}
 var money_label: Label
+var upgrades_page: VBoxContainer
+var decor_page: VBoxContainer
 
 
 func _ready() -> void:
@@ -18,23 +23,34 @@ func _ready() -> void:
 	s.set_corner_radius_all(18)
 	s.set_content_margin_all(24)
 	add_theme_stylebox_override("panel", s)
-	position = Vector2(190, 80)
-	custom_minimum_size = Vector2(900, 560)
+	position = Vector2(190, 60)
+	custom_minimum_size = Vector2(900, 600)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 18)
+	col.add_theme_constant_override("separation", 14)
 	add_child(col)
 	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 12)
 	col.add_child(top)
-	var heading := text("Upgrades", 32, Color("#BE895B"))
-	heading.size_flags_horizontal = SIZE_EXPAND_FILL
-	top.add_child(heading)
+	for tab in ["Upgrades", "Decor"]:
+		var b := Button.new()
+		b.text = tab
+		b.custom_minimum_size = Vector2(170, 52)
+		b.pressed.connect(show_tab.bind(tab))
+		top.add_child(b)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = SIZE_EXPAND_FILL
+	top.add_child(spacer)
 	money_label = text("", 26, Color("#3E7E3E"))
 	top.add_child(money_label)
+
+	upgrades_page = VBoxContainer.new()
+	upgrades_page.add_theme_constant_override("separation", 18)
+	col.add_child(upgrades_page)
 	for id in SaveGame.UPGRADES:
 		var u: Dictionary = SaveGame.UPGRADES[id]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 18)
-		col.add_child(row)
+		upgrades_page.add_child(row)
 		var info := VBoxContainer.new()
 		info.custom_minimum_size = Vector2(520, 0)
 		row.add_child(info)
@@ -58,20 +74,54 @@ func _ready() -> void:
 			refresh())
 		row.add_child(buy)
 		rows[id] = {"cells": cells, "buy": buy}
+
+	decor_page = VBoxContainer.new()
+	decor_page.add_theme_constant_override("separation", 10)
+	col.add_child(decor_page)
+	decor_page.add_child(text("Each decoration makes customers tip 5% more.", 18, Color("#65422F")))
+	for id in SaveGame.DECOR:
+		var d: Dictionary = SaveGame.DECOR[id]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 18)
+		decor_page.add_child(row)
+		var info := VBoxContainer.new()
+		info.custom_minimum_size = Vector2(520, 0)
+		row.add_child(info)
+		info.add_child(text(d.name, 24, Color("#36251D")))
+		info.add_child(text(d.desc, 16, Color("#65422F")))
+		var buy := Button.new()
+		buy.custom_minimum_size = Vector2(220, 56)
+		buy.pressed.connect(func():
+			if SaveGame.buy_decor(save, id):
+				SaveGame.write(save)
+				bought.emit()
+			refresh())
+		row.add_child(buy)
+		decor_rows[id] = buy
+
+	var fill := Control.new()
+	fill.size_flags_vertical = SIZE_EXPAND_FILL
+	col.add_child(fill)
 	var close := Button.new()
 	close.text = "Close"
 	close.custom_minimum_size = Vector2(220, 56)
 	close.pressed.connect(hide)
 	col.add_child(close)
+	show_tab("Upgrades")
 	hide()
 
 
-func text(t: String, size: int, c: Color) -> Label:
+func text(t: String, size_px: int, c: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", size_px)
 	l.add_theme_color_override("font_color", c)
 	return l
+
+
+func show_tab(tab: String) -> void:
+	upgrades_page.visible = tab == "Upgrades"
+	decor_page.visible = tab == "Decor"
 
 
 func open(data: Dictionary) -> void:
@@ -90,3 +140,8 @@ func refresh() -> void:
 		var b: Button = rows[id].buy
 		b.text = "MAX" if cost < 0 else "Level up  RM %d" % cost
 		b.disabled = cost < 0 or save.money < cost
+	for id in decor_rows:
+		var b: Button = decor_rows[id]
+		var owned: bool = id in save.decor
+		b.text = "Owned" if owned else "Buy  RM %d" % SaveGame.DECOR[id].cost
+		b.disabled = owned or save.money < SaveGame.DECOR[id].cost

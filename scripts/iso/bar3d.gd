@@ -19,13 +19,13 @@ const CUP_FULL_G := 40.0
 const EYE := Vector3(-0.05, 1.72, 0.85)
 const EYE_PITCH := -32.0
 
-const MACHINE_AT := Vector3(0.18, COUNTER_Y, -0.36)
-const GRINDER_AT := Vector3(-0.42, COUNTER_Y, -0.36)
-const MAT_AT := Vector3(-0.2, COUNTER_Y, -0.04)
-const KNOCK_AT := Vector3(-0.72, COUNTER_Y, -0.12)
-const STACK_AT := Vector3(0.62, COUNTER_Y, -0.28)
-const SERVE_AT := Vector3(0.64, COUNTER_Y, -0.04)
-const TAMPER_REST := Vector3(-0.02, COUNTER_Y, -0.02)
+const MACHINE_AT := Vector3(-0.6, COUNTER_Y, -0.3)
+const GRINDER_AT := Vector3(0.0, COUNTER_Y, -0.38)
+const MAT_AT := Vector3(0.42, COUNTER_Y, -0.02)
+const KNOCK_AT := Vector3(-1.15, COUNTER_Y, -0.45)
+const STACK_AT := Vector3(-1.45, COUNTER_Y, -0.45)
+const SERVE_AT := Vector3(1.15, COUNTER_Y, -0.45)
+const TAMPER_REST := Vector3(0.42, COUNTER_Y, -0.02)
 
 var recipe: Dictionary
 var dispense_g_per_s := 4.0
@@ -100,14 +100,14 @@ func _ready() -> void:
 	highlight.set_shader_parameter("width_px", 1.0)
 
 	build_room()
-	machine = Props.espresso_machine(world, MACHINE_AT)
+	machine = Props.espresso_machine(world, MACHINE_AT, Props.BLACK, Color("#C9A06E"))  # reference colours
 	grinder = Props.grinder(world, GRINDER_AT)
 	Props.tamp_mat(world, MAT_AT)
 	Props.knock_box(world, KNOCK_AT)
 	Props.cup_stack(world, STACK_AT)
 	Props.serve_tray(world, SERVE_AT)
-	Props.milk(world, Vector3(0.9, COUNTER_Y, -0.3))
-	Props.pitcher(world, Vector3(0.9, COUNTER_Y, -0.12))
+	Props.milk(world, Vector3(-1.75, COUNTER_Y, -0.45))
+	Props.pitcher(world, Vector3(-1.1, COUNTER_Y, -0.05))
 
 	spots = {
 		"fork": grinder.to_global(Vector3(0, 0.115, 0.1)),
@@ -187,7 +187,7 @@ func build_room() -> void:
 	var lamp := OmniLight3D.new()
 	lamp.position = Vector3(0, 1.9, -0.1)
 	lamp.omni_range = 2.2
-	lamp.light_energy = 0.5
+	lamp.light_energy = 0.25
 	lamp.light_color = Color("#FFD9A0")
 	world.add_child(lamp)
 
@@ -202,21 +202,26 @@ func build_room() -> void:
 
 # ---------- views and characters ----------
 
-const ISO_TARGET := Vector3(0.1, 0.6, 1.2)
+## Isometric "dollhouse" view: parallel (orthographic) projection at the classic 30°
+## pixel-art angle, looking in from the open front corner (the room has no front walls).
+const ISO_TARGET := Vector3(0.0, 1.2, -0.45)
 const ISO_PITCH := 30.0
-const ISO_YAW := 45.0
+const ISO_YAW := -45.0
 const ISO_DIST := 18.0
 const ISO_FOV := 16.0
+const ISO_SIZE := 2.6  # orthographic view height in metres (smaller = closer)
 const LOOKS := {
-	"mentor": {"skin": Color("#C68B5E"), "hair": Color("#2A1B14"), "hair_style": "bun",
+	# "model" = Kenney mini character (CC0) used in the café; the colours are the old
+	# blocky fallback (tools/render_sprites.gd).
+	"mentor": {"model": "female-e", "skin": Color("#C68B5E"), "hair": Color("#2A1B14"), "hair_style": "bun",
 		"shirt": Color("#EFE6D8"), "pants": Color("#3A3F4E"), "apron": Color("#8FAE6A")},
-	"student": {"skin": Color("#E2B48A"), "hair_style": "cap", "cap": Color("#C0504D"),
+	"student": {"model": "male-a", "skin": Color("#E2B48A"), "hair_style": "cap", "cap": Color("#C0504D"),
 		"shirt": Color("#5B7DB1"), "pants": Color("#2F3A55")},
-	"office": {"skin": Color("#8D5A3B"), "hair": Color("#1E1410"), "shirt": Color("#E9E4D8"),
+	"office": {"model": "male-d", "skin": Color("#8D5A3B"), "hair": Color("#1E1410"), "shirt": Color("#E9E4D8"),
 		"pants": Color("#3A3F4E")},
-	"enthusiast": {"skin": Color("#D9A57A"), "hair": Color("#5A4033"), "shirt": Color("#7A4E6E"),
+	"enthusiast": {"model": "male-b", "skin": Color("#D9A57A"), "hair": Color("#5A4033"), "shirt": Color("#7A4E6E"),
 		"pants": Color("#4A3B30"), "glasses": true, "beard": true},
-	"aunty": {"skin": Color("#C9926A"), "hair_style": "tudung", "tudung": Color("#C46A8A"),
+	"aunty": {"model": "female-c", "skin": Color("#C9926A"), "hair_style": "tudung", "tudung": Color("#C46A8A"),
 		"shirt": Color("#E8C04A"), "pants": Color("#6A4E8A")},
 }
 
@@ -238,6 +243,8 @@ func set_view(v: String, animate := true) -> void:
 		to_rot = Vector3(-ISO_PITCH, ISO_YAW, 0)
 		to_fov = ISO_FOV
 	container.stretch_shrink = 2 if v == "iso" else PIXEL_SCALE  # finer pixels for the wide view
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL if v == "iso" else Camera3D.PROJECTION_PERSPECTIVE
+	camera.size = ISO_SIZE
 	if not animate:
 		camera.position = to_pos
 		camera.rotation_degrees = to_rot
@@ -247,6 +254,17 @@ func set_view(v: String, animate := true) -> void:
 	t.tween_property(camera, "position", to_pos, 1.1)
 	t.tween_property(camera, "rotation_degrees", to_rot, 1.1)
 	t.tween_property(camera, "fov", to_fov, 1.1)
+
+
+## Rebuilds the bought decorations (CafeRoom.decor) under one "Decor" node.
+func set_decor(ids: Array) -> void:
+	var old := world.get_node_or_null("Decor")
+	if old:
+		old.free()
+	var n := Node3D.new()
+	n.name = "Decor"
+	world.add_child(n)
+	CafeRoom.decor(n, ids)
 
 
 func add_person(look_name: String, at: Vector3) -> Node3D:
@@ -259,11 +277,16 @@ func add_person(look_name: String, at: Vector3) -> Node3D:
 func walk(p: Node3D, to: Vector3, time := 1.6) -> Tween:
 	var d := to - p.position
 	p.rotation_degrees.y = rad_to_deg(atan2(d.x, d.z))
+	var t := create_tween()
+	if p.has_meta("anim"):  # Kenney character: real walk cycle
+		Props.play(p, "walk")
+		t.tween_property(p, "position", to, time)
+		t.tween_callback(Props.play.bind(p, "idle"))
+		return t
 	var body: Node3D = p.get_node("Body")
 	var bob := create_tween().set_loops(int(time / 0.3))
 	bob.tween_property(body, "position:y", 0.04, 0.15)
 	bob.tween_property(body, "position:y", 0.0, 0.15)
-	var t := create_tween()
 	t.tween_property(p, "position", to, time)
 	return t
 
@@ -273,7 +296,7 @@ func customer_enter(look_name: String) -> Tween:
 		customer.queue_free()
 	customer = add_person(look_name, CafeRoom.DOOR_SPOT)
 	var t := walk(customer, CafeRoom.CUSTOMER_SPOT)
-	t.tween_property(customer, "rotation_degrees:y", 180.0, 0.25)
+	t.tween_property(customer, "rotation_degrees:y", CafeRoom.CUSTOMER_FACING, 0.25)
 	return t
 
 
@@ -300,7 +323,7 @@ func emote(p: Node3D, text: String, time := 1.6) -> void:
 		return
 	var e: Label3D = p.get_node("Emote")
 	e.text = text
-	var t := create_tween()
+	var t := e.create_tween()  # bound to the label: dies with it if the person leaves first
 	t.tween_interval(time)
 	t.tween_callback(func(): e.text = "")
 

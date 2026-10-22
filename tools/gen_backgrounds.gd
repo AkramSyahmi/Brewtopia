@@ -3,7 +3,7 @@ extends SceneTree
 ## Run: Godot_console.exe --headless --path . --script res://tools/gen_backgrounds.gd
 
 const OUT := "res://assets/art/"
-const KEEP := []  # backgrounds replaced by AI/pack art; never overwrite these
+var KEEP: Array = ArtKeep.names()  # replaced by real art (assets/art/KEEP.txt); never overwrite
 
 
 
@@ -124,19 +124,53 @@ func counter_front() -> void:
 
 
 
-## Back bar: the skyline window from counter_bg along the top, dark wooden counter below
-## (matches the front counter's evening look). Used by station_bg and topping_bg.
+## Back bar in the café's daytime look (brewtopia 2 reference, same palette as CafeRoom):
+## a light grey wall with a wood-framed window (patterned privacy film), a poster and an
+## outlet along the top; the beige stone counter top below. Used by station_bg and topping_bg.
+const WALL := Color("#CDCDCB")
+const WALL_SHADE := Color("#C2C2C0")
+const TOP := Color("#D8CFC1")
+const TOP_SHADE := Color("#CEC4B5")
+const FRAME := Color("#8C5A3A")
+const GLASS := Color("#BFDCE3")
+const FILM := Color("#EEF3F7")
+const LINE := Color("#36251D")
+
+
 func bar_base() -> Image:
-	var sky := Image.load_from_file(ProjectSettings.globalize_path(OUT + "counter_bg.png"))
-	sky.convert(Image.FORMAT_RGBA8)
 	var img := Image.create_empty(640, 360, false, Image.FORMAT_RGBA8)
-	img.blit_rect(sky, Rect2i(0, 84, 640, 104), Vector2i.ZERO)
-	img.fill_rect(Rect2i(0, 104, 640, 256), Color("#5A3526"))
-	for y in range(112, 360, 9):
-		for x in range(0, 640, 23):  # wood grain
-			img.fill_rect(Rect2i(x + (y * 7) % 11, y, 14, 1), Color("#4E2D20"))
-	img.fill_rect(Rect2i(0, 104, 640, 5), Color("#7A4C36"))
-	img.fill_rect(Rect2i(0, 109, 640, 2), Color("#3A2219"))
+	img.fill_rect(Rect2i(0, 0, 640, 104), WALL)
+	for x in range(0, 640, 2):  # soft shading towards the counter
+		for y in range(84, 100):
+			img.set_pixel(x + (y % 2), y, dither(WALL, WALL_SHADE, (y - 84) / 16.0, x, y))
+	# window with a patterned film on its lower half
+	img.fill_rect(Rect2i(452, 4, 172, 98), FRAME)
+	img.fill_rect(Rect2i(458, 10, 160, 88), GLASS)
+	img.fill_rect(Rect2i(458, 56, 160, 42), FILM)
+	for i in 14:  # little blue "%" marks
+		var mx := 466 + (i % 7) * 22
+		var my := 62 + (i / 7) * 18 + (i % 2) * 6
+		for k in 5:
+			img.set_pixel(mx + k, my + 4 - k, Color("#4E6FC4"))
+	img.fill_rect(Rect2i(536, 10, 4, 88), FRAME)  # window bar
+	for k in 3:  # glare
+		img.fill_rect(Rect2i(470 + k * 4, 14 + k * 6, 2, 26), Color("#E2F1F4"))
+	# poster and outlet
+	img.fill_rect(Rect2i(176, 14, 30, 44), LINE)
+	img.fill_rect(Rect2i(178, 16, 26, 40), Color("#2F3A30"))
+	img.fill_rect(Rect2i(184, 22, 14, 14), Color("#8C6A3E"))
+	img.fill_rect(Rect2i(182, 42, 18, 2), Color("#E9E4D8"))
+	img.fill_rect(Rect2i(414, 74, 18, 10), Color("#F2F2F0"))
+	img.fill_rect(Rect2i(418, 78, 2, 3), LINE)
+	img.fill_rect(Rect2i(426, 78, 2, 3), LINE)
+	# counter top: beige stone with a lighter front edge line at the wall
+	img.fill_rect(Rect2i(0, 104, 640, 256), TOP)
+	img.fill_rect(Rect2i(0, 102, 640, 2), LINE)
+	img.fill_rect(Rect2i(0, 104, 640, 3), Color("#E6DED2"))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 900:  # stone speckles
+		img.set_pixel(rng.randi_range(0, 639), rng.randi_range(108, 359), TOP_SHADE)
 	return img
 
 
@@ -144,11 +178,15 @@ func station_bg() -> void:
 	bar_base().save_png(ProjectSettings.globalize_path(OUT + "station_bg.png"))
 
 
-## Topping station: same back bar plus a syrup shelf and a cup slot mat.
+## Topping station: same back bar plus a light-wood syrup shelf and two cup slot mats
+## (EspressoStation.SLOTS).
 func topping_bg() -> void:
 	var img := bar_base()
-	img.fill_rect(Rect2i(100, 126, 440, 10), Color("#8A5634"))  # syrup shelf
-	img.fill_rect(Rect2i(100, 136, 440, 3), Color("#3A2219"))
-	img.fill_rect(Rect2i(250, 214, 140, 104), Color("#6A4231"))  # cup slot mat
-	img.fill_rect(Rect2i(254, 218, 132, 96), Color("#5E3A2A"))
+	img.fill_rect(Rect2i(60, 126, 480, 10), Color("#D7B77E"))  # syrup shelf
+	img.fill_rect(Rect2i(60, 136, 480, 3), Color("#B8955E"))
+	for cx in [360, 460]:
+		img.fill_rect(Rect2i(cx - 46, 226, 92, 88), LINE)  # rubber cup mat
+		img.fill_rect(Rect2i(cx - 44, 228, 88, 84), Color("#4A4446"))
+		for y in range(232, 310, 6):
+			img.fill_rect(Rect2i(cx - 40, y, 80, 1), Color("#5A5456"))
 	img.save_png(ProjectSettings.globalize_path(OUT + "topping_bg.png"))

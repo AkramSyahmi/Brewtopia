@@ -44,7 +44,7 @@ func _init() -> void:
 	check(Model.evaluate(kaw, 18, 5, 36).tip.contains("too long"), "kaw shot at 36 g ran too long")
 
 	var s := Rewards.summary([95, 80, 50], 40)
-	check(s.tips_rm == 8 and s.average == 75 and s.xp == 22 and s.wage_rm == 40, "shift summary %s" % s)
+	check(s.tips_rm == 8 and s.average == 75 and s.xp == 45 and s.wage_rm == 40, "shift summary %s" % s)
 
 	var shift := Model.load_recipe("res://data/orders/ch1_first_shift.json")
 	check(shift.orders.size() == 4, "shift has 4 orders")
@@ -56,9 +56,117 @@ func _init() -> void:
 		check(shift.reactions.has(g), "reaction for " + g)
 
 	drinks()
+	iced_drinks()
+	days(shift)
+	friends()
+	more_drinks()
 	saves()
 	print("PASS" if failures == 0 else "%d FAILED" % failures)
 	quit(failures)
+
+
+func iced_drinks() -> void:
+	var iced := Model.load_recipe("res://data/recipes/iced_latte.json")
+	var good := {"dose": 18, "grind": 5, "tamped": true, "yield": 36, "time": 27.5, "cup": "iced",
+		"milk_temp": 5.0, "ice": true, "syrups": {}, "toppings": []}
+	var r := Drink.evaluate(iced, good)
+	check(r.grade == "Perfect Brew", "perfect iced latte (%s)" % r)
+	var no_ice := good.duplicate(true)
+	no_ice.ice = false
+	check(Drink.evaluate(iced, no_ice).tip.contains("forgot the ice"), "iced latte without ice")
+	var steamed := good.duplicate(true)
+	steamed.milk_temp = 62.0
+	check(Drink.evaluate(iced, steamed).tip.contains("cold milk"), "steamed milk in an iced drink")
+	var latte := Model.load_recipe("res://data/recipes/latte.json")
+	var hot := good.duplicate(true)
+	hot.cup = "cup"
+	hot.milk_temp = 62.0
+	check(Drink.evaluate(latte, hot).accuracy < 100, "ice in a hot latte costs accuracy")
+
+
+func days(tutorial: Dictionary) -> void:
+	var daily := Model.load_recipe("res://data/orders/daily.json")
+	var basics := ["double_espresso_training", "latte", "gula_melaka_latte"]
+	check(DayPlan.unlocked(daily, 1) == basics, "level 1 menu = the tutorial drinks")
+	check(DayPlan.unlocked(daily, 5).size() == daily.recipes.size(), "everything unlocked by level 5")
+	var d2 := DayPlan.build(2, tutorial, daily, 2, basics)
+	check(d2.orders.size() == 5, "day 2 has 5 orders")
+	check(d2.orders[0].recipe == "iced_latte" and d2.orders[1].recipe == "cappuccino",
+		"new level-2 recipes come first (%s, %s)" % [d2.orders[0].recipe, d2.orders[1].recipe])
+	check(d2.orders[0].intro.size() > 1, "new recipe comes with mentor lines")
+	check(DayPlan.build(2, tutorial, daily, 2, basics) == d2, "day plan is deterministic")
+	check(d2.patience_s < DayPlan.PATIENCE_S, "less patience on day 2")
+	var low := DayPlan.build(2, tutorial, daily, 1, basics)
+	for o in low.orders:
+		check(o.recipe in basics, "level 1 only orders basics")
+	var d6 := DayPlan.build(6, tutorial, daily, 5, daily.recipes)
+	check(d6.orders.size() == 8, "day 6 is capped at 8 orders")
+	var pairs := 0
+	var vague := 0
+	var taught := 0
+	for day in range(3, 12):
+		for o in DayPlan.build(day, tutorial, daily, 5, daily.recipes).orders:
+			check(daily.lines.has(o.recipe), "known recipe " + o.recipe)
+			check(tutorial.cast.has(o.customer), "known customer " + o.customer)
+			pairs += int(o.count == 2)
+			if o.count == 2:
+				check(o.intro[0][1].begins_with("Two "), "pair order asks for two")
+			if o.vague:
+				vague += 1
+				check(o.intro[0][1] in DayPlan.recipe(o.recipe).riddles, "vague order uses a riddle")
+				check(o.count == 1 and not o.has("recipe_overrides"), "vague orders are single, no kaw")
+	check(pairs > 0, "some two-drink orders from day 3")
+	check(vague > 0, "some vague orders")
+	for o in DayPlan.build(4, tutorial, daily, 5, daily.recipes).orders:  # "_vague" not seen yet
+		taught += int(o.vague and o.intro.size() > 1)
+	check(taught <= 1, "the vague-order tip is shown at most once a day")
+	for o in d2.orders:
+		check(o.count == 1, "no pairs on day 2")
+
+
+func friends() -> void:
+	var stories := Model.load_recipe("res://data/orders/stories.json")
+	var d := Save.fresh()
+	check(Friends.take_beat(d, "MAKCIK", stories).is_empty(), "no story before any hearts")
+	Friends.reward(d, "MAKCIK", "Perfect Brew", stories)
+	Friends.reward(d, "MAKCIK", "Good Effort", stories)
+	check(Friends.hearts(d, "MAKCIK", stories) == 1, "4 points = 1 heart")
+	var beat := Friends.take_beat(d, "MAKCIK", stories)
+	check(not beat.is_empty() and d.story_seen.MAKCIK == 1, "first story beat unlocked")
+	check(Friends.take_beat(d, "MAKCIK", stories).is_empty(), "a beat plays once")
+	check(Friends.tip_multiplier(d, "MAKCIK", stories) > 1.0, "friends tip more")
+	Friends.reward(d, "MENTOR", "Perfect Brew", stories)
+	check(not d.friends.has("MENTOR"), "only regulars collect friendship")
+	for role in stories.beats:
+		for b in stories.beats[role]:
+			for line in b:
+				check(line[0] in ["CHOICE", "MENTOR", role], "story speaker " + str(line[0]))
+
+
+func more_drinks() -> void:
+	var good := {"dose": 18, "grind": 5, "tamped": true, "yield": 36, "time": 27.5, "cup": "cup",
+		"milk_temp": 62.0, "milk_foam": 0.6, "syrups": {}, "toppings": ["cocoa"], "art": 1.0}
+	var capp := Model.load_recipe("res://data/recipes/cappuccino.json")
+	check(Drink.evaluate(capp, good).grade == "Perfect Brew", "perfect cappuccino")
+	var flat := good.duplicate(true)
+	flat.milk_foam = 0.3
+	check(Drink.evaluate(capp, flat).tip.contains("too flat"), "cappuccino needs more foam")
+	var wonky := good.duplicate(true)
+	wonky.art = 0.2
+	check(Drink.evaluate(capp, wonky).tip.contains("lopsided"), "bad latte art diagnosed")
+	check(Drink.evaluate(capp, wonky).quality < Drink.evaluate(capp, good).quality, "latte art counts")
+	var kopi := Model.load_recipe("res://data/recipes/kopi_susu_ais.json")
+	var k := {"dose": 18, "grind": 5, "tamped": true, "yield": 36, "time": 27.5, "cup": "iced",
+		"milk_temp": -1.0, "ice": true, "syrups": {"condensed_milk": 2}, "toppings": []}
+	check(Drink.evaluate(kopi, k).grade == "Perfect Brew", "perfect kopi susu ais")
+	var with_milk := k.duplicate(true)
+	with_milk.milk_temp = 5.0
+	check(Drink.evaluate(kopi, with_milk).tip.contains("didn't ask for milk"), "no fresh milk in kopi susu")
+	var dd := Save.fresh()
+	dd.money = 50
+	check(Save.buy_decor(dd, "plants") and dd.money == 10 and "plants" in dd.decor, "buy decor")
+	check(not Save.buy_decor(dd, "plants"), "decor bought once")
+	check(not Save.buy_decor(dd, "neon"), "decor needs money")
 
 
 func drinks() -> void:
@@ -73,6 +181,12 @@ func drinks() -> void:
 	var hot := good.duplicate(true)
 	hot.milk_temp = 80.0
 	check(Drink.evaluate(latte, hot).tip.contains("too hot"), "scalded milk")
+	var foamy := good.duplicate(true)
+	foamy.milk_foam = 0.9
+	check(Drink.evaluate(latte, foamy).tip.contains("too foamy"), "over-aerated milk")
+	var silky := good.duplicate(true)
+	silky.milk_foam = 0.3
+	check(Drink.evaluate(latte, silky).grade == "Perfect Brew", "silky milk stays perfect")
 	var glass := good.duplicate(true)
 	glass.cup = "glass"
 	check(Drink.evaluate(latte, glass).tip.contains("Wrong cup"), "wrong cup")
@@ -90,5 +204,5 @@ func saves() -> void:
 	check(not Save.buy(d, "shot_timer"), "can't buy without money")
 	d.money = 100
 	check(Save.buy(d, "shot_timer") and d.money == 70 and d.upgrades.shot_timer == 1, "buy level 1")
-	d.xp = 250
-	check(Save.level(d) == 3 and is_equal_approx(Save.xp_progress(d), 0.5), "level from xp")
+	d.xp = 150
+	check(Save.level(d) == 3 and is_equal_approx(Save.xp_progress(d), 0.5), "level from xp (60 per level)")

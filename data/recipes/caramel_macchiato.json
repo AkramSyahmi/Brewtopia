@@ -1,0 +1,17 @@
+{
+  "recipe_id": "caramel_macchiato",
+  "display_name": "Caramel Macchiato",
+  "unlock_level": 5,
+  "latte_art": true,
+  "riddles": ["Hot, milky, a little vanilla and a lot of caramel.", "Something sweet with vanilla and caramel, warm please."],
+  "cup": "cup",
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 60, "temp_max": 65, "foam_min": 0.25, "foam_max": 0.4},
+  "syrups": {"vanilla": 1, "caramel": 2},
+  "ingredients": ["18 g ground coffee", "36 g espresso", "Steamed milk, 60–65°C", "1 pump vanilla syrup", "2 pumps caramel syrup"],
+  "steps": "Make a latte, then at the topping station add 1 pump of vanilla and 2 pumps of caramel."
+}

@@ -10,6 +10,7 @@ const BLACK := Color("#2B2729")
 const CREAM := Color("#EFE6D8")
 const PORCELAIN := Color("#F7F3EE")
 const SAGE := Color("#8FAE6A")
+const TAN := Color("#C9A06E")  # café machine side panels (brewtopia 2 reference)
 const WOOD := Color("#8A5634")
 const COFFEE := Color("#4A2614")
 const CREMA := Color("#C98B55")
@@ -19,6 +20,84 @@ const RED := Color("#C8463C")
 const GLASS := Color("#DCE8EC")
 
 const FACE_Z := Vector3(90, 0, 0)  # rotates a cylinder so its flat face points +Z
+
+
+const MODELS := "res://assets/models/%s.glb"
+const KENNEY_SCALE := 2.0  # Kenney furniture is about half our metre scale
+const CHARACTER_SCALE := 1.6  # Kenney mini characters are 0.78 tall (chibi, big heads) -> about 1.25 m
+
+
+## A CC0 Kenney model (assets/models/<path>.glb), re-centred so its origin is the bottom
+## centre like our props, scaled to metres and given the toon look + dark outline.
+static func model(parent: Node3D, path: String, pos := Vector3.ZERO, rot_y := 0.0, scale := KENNEY_SCALE) -> Node3D:
+	var holder := node(parent, pos)
+	holder.rotation_degrees.y = rot_y
+	var m: Node3D = load(MODELS % path).instantiate()
+	holder.add_child(m)
+	var box := AABB()
+	var first := true
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (mi as MeshInstance3D).transform * (mi as MeshInstance3D).get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	m.position = -Vector3(box.get_center().x, box.position.y, box.get_center().z) * scale
+	m.scale = Vector3.ONE * scale
+	toon(m)
+	return holder
+
+
+## Gives every mesh under `n` toon shading and our dark inverted-hull outline.
+static func toon(n: Node) -> void:
+	var outline := ShaderMaterial.new()
+	outline.shader = IsoKit.OUTLINE_SHADER
+	outline.set_shader_parameter("color", IsoKit.OUTLINE)
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = (mi as MeshInstance3D).mesh
+		for s in mesh.get_surface_count():
+			var src := (mi as MeshInstance3D).get_active_material(s) as BaseMaterial3D
+			if src == null:
+				continue
+			var m := src.duplicate() as BaseMaterial3D
+			m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+			m.specular_mode = BaseMaterial3D.SPECULAR_TOON
+			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+			m.next_pass = outline
+			(mi as MeshInstance3D).set_surface_override_material(s, m)
+
+
+## A Kenney mini character ("female-e", "male-d", ...): origin at the feet, facing +Z,
+## with a "Body" node (hops) and an "Emote" label; its AnimationPlayer is in meta "anim"
+## and starts on "idle".
+static func kenney_person(parent: Node3D, who: String) -> Node3D:
+	var p := node(parent)
+	var body := node(p)
+	body.name = "Body"
+	var m: Node3D = load(MODELS % ("characters/character-" + who)).instantiate()
+	m.scale = Vector3.ONE * CHARACTER_SCALE
+	body.add_child(m)
+	toon(m)
+	var players := m.find_children("*", "AnimationPlayer", true, false)
+	if not players.is_empty():
+		var anim := players[0] as AnimationPlayer
+		p.set_meta("anim", anim)
+		anim.play("idle")
+	var emote := Label3D.new()
+	emote.name = "Emote"
+	emote.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	emote.font_size = 64
+	emote.pixel_size = 0.004
+	emote.outline_size = 12
+	emote.modulate = Color("#FFE066")
+	emote.position = Vector3(0, 1.45, 0)  # just above the chibi head
+	emote.no_depth_test = true
+	p.add_child(emote)
+	return p
+
+
+## Plays a character animation if the person has one (Kenney characters).
+static func play(p: Node3D, anim_name: String) -> void:
+	if p and p.has_meta("anim"):
+		(p.get_meta("anim") as AnimationPlayer).play(anim_name)
 
 
 static func node(parent: Node3D, pos := Vector3.ZERO) -> Node3D:
@@ -44,15 +123,15 @@ static func lcd_label(parent: Node3D, pos: Vector3, size := 0.0009) -> Label3D:
 
 ## Single-group espresso machine, 0.6 wide. Returns the root; useful children are
 ## named: "BrewButton", "Gauge", "ShotStream". Group head basket sits at (0, 0.22, 0.13).
-static func espresso_machine(parent: Node3D, pos: Vector3) -> Node3D:
+static func espresso_machine(parent: Node3D, pos: Vector3, body := STEEL, side := SAGE) -> Node3D:
 	var m := node(parent, pos)
 	for fx in [-0.26, 0.26]:
 		for fz in [-0.16, 0.16]:
 			IsoKit.cyl(m, 0.02, 0.02, Vector3(fx, 0.01, fz), BLACK)
 	IsoKit.box(m, Vector3(0.6, 0.04, 0.42), Vector3(0, 0.04, 0), BLACK)  # plinth
-	IsoKit.box(m, Vector3(0.52, 0.4, 0.36), Vector3(0, 0.26, -0.03), STEEL, true)  # body
-	IsoKit.box(m, Vector3(0.05, 0.42, 0.4), Vector3(-0.285, 0.27, -0.02), SAGE)  # side panels
-	IsoKit.box(m, Vector3(0.05, 0.42, 0.4), Vector3(0.285, 0.27, -0.02), SAGE)
+	IsoKit.box(m, Vector3(0.52, 0.4, 0.36), Vector3(0, 0.26, -0.03), body, body == STEEL)  # body
+	IsoKit.box(m, Vector3(0.05, 0.42, 0.4), Vector3(-0.285, 0.27, -0.02), side)  # side panels
+	IsoKit.box(m, Vector3(0.05, 0.42, 0.4), Vector3(0.285, 0.27, -0.02), side)
 	IsoKit.box(m, Vector3(0.48, 0.12, 0.012), Vector3(0, 0.39, 0.155), CREAM)  # front control strip
 	IsoKit.box(m, Vector3(0.16, 0.035, 0.006), Vector3(0, 0.425, 0.163), BLACK)  # name plate
 	var plate := Label3D.new()
@@ -253,11 +332,11 @@ static func milk(parent: Node3D, pos: Vector3) -> void:
 ## Two-group espresso machine without cups or portafilters (sprite version).
 static func machine2(parent: Node3D) -> Node3D:
 	var m := node(parent)
-	IsoKit.box(m, Vector3(0.74, 0.05, 0.46), Vector3(0, 0.025, 0), CREAM)  # plinth
-	IsoKit.box(m, Vector3(0.68, 0.24, 0.4), Vector3(0, 0.45, -0.02), SAGE)  # body
-	IsoKit.box(m, Vector3(0.6, 0.1, 0.01), Vector3(0, 0.46, 0.185), Color("#B9CC96"))  # panel
+	IsoKit.box(m, Vector3(0.74, 0.05, 0.46), Vector3(0, 0.025, 0), BLACK)  # plinth
+	IsoKit.box(m, Vector3(0.68, 0.24, 0.4), Vector3(0, 0.45, -0.02), BLACK)  # body
+	IsoKit.box(m, Vector3(0.6, 0.1, 0.01), Vector3(0, 0.46, 0.185), TAN)  # panel
 	for gx in [-0.2, 0.0, 0.2]:
-		var g := IsoKit.cyl(m, 0.045 if gx == 0.0 else 0.032, 0.015, Vector3(gx, 0.46, 0.19), Color("#5E8F5A"))
+		var g := IsoKit.cyl(m, 0.045 if gx == 0.0 else 0.032, 0.015, Vector3(gx, 0.46, 0.19), STEEL_DARK, true)
 		g.rotation_degrees = FACE_Z
 		var face := IsoKit.cyl(m, 0.035 if gx == 0.0 else 0.022, 0.006, Vector3(gx, 0.46, 0.2),
 			PORCELAIN if gx == 0.0 else STEEL_DARK, gx != 0.0)
@@ -266,13 +345,13 @@ static func machine2(parent: Node3D) -> Node3D:
 	for side in [-1.0, 1.0]:  # cup rail on top
 		IsoKit.box(m, Vector3(0.02, 0.06, 0.38), Vector3(side * 0.33, 0.6, -0.02), STEEL, true)
 	IsoKit.box(m, Vector3(0.64, 0.02, 0.36), Vector3(0, 0.58, -0.02), STEEL_DARK, true)
-	IsoKit.box(m, Vector3(0.6, 0.27, 0.01), Vector3(0, 0.2, 0.05), Color("#6A5A50"))  # brew bay
+	IsoKit.box(m, Vector3(0.6, 0.27, 0.01), Vector3(0, 0.2, 0.05), Color("#3A3537"))  # brew bay
 	for side in [-1.0, 1.0]:  # side pillars down to the drip tray
-		IsoKit.box(m, Vector3(0.04, 0.27, 0.36), Vector3(side * 0.32, 0.2, -0.02), SAGE)
+		IsoKit.box(m, Vector3(0.04, 0.27, 0.36), Vector3(side * 0.32, 0.2, -0.02), TAN)
 	for gx in [-0.16, 0.16]:
 		IsoKit.cyl(m, 0.06, 0.02, Vector3(gx, 0.32, 0.12), STEEL_DARK, true)
 		IsoKit.cyl(m, 0.05, 0.05, Vector3(gx, 0.285, 0.12), STEEL, true)
-		IsoKit.cyl(m, 0.012, 0.02, Vector3(gx, 0.25, 0.12), Color("#5E8F5A"))
+		IsoKit.cyl(m, 0.012, 0.02, Vector3(gx, 0.25, 0.12), STEEL_DARK, true)
 		IsoKit.box(m, Vector3(0.14, 0.015, 0.13), Vector3(gx, 0.075, 0.14), STEEL_DARK, true)  # scale pad
 		IsoKit.box(m, Vector3(0.1, 0.02, 0.004), Vector3(gx, 0.066, 0.208), Color("#7C8A80"), false, false, false)
 	IsoKit.box(m, Vector3(0.66, 0.035, 0.2), Vector3(0, 0.05, 0.14), STEEL, true)  # drip tray
@@ -356,6 +435,8 @@ static func topping_box(parent: Node3D, filling: Color, bumps := true) -> Node3D
 ## Blocky low-poly person, origin at the feet, facing +Z. `look` keys:
 ## skin, hair, shirt, pants, hair_style ("short", "bun", "long", "cap"), cap, apron, glasses, beard.
 static func person(parent: Node3D, look: Dictionary) -> Node3D:
+	if look.has("model"):
+		return kenney_person(parent, look.model)
 	var p := node(parent)
 	var body := node(p)  # bobbed while walking
 	body.name = "Body"

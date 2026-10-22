@@ -1,0 +1,64 @@
+{
+  "wage_rm": 45,
+  "regulars": ["STUDENT_REGULAR", "CUSTOMER", "COFFEE_ENTHUSIAST", "MAKCIK"],
+  "recipes": [
+    "double_espresso_training",
+    "latte",
+    "gula_melaka_latte",
+    "iced_latte",
+    "cappuccino",
+    "iced_gula_melaka_latte",
+    "mocha",
+    "kopi_susu_ais",
+    "caramel_macchiato"
+  ],
+  "new_recipe_intro": {
+    "iced_latte": [
+      ["MENTOR", "Hot day today! People will want iced drinks. Let me show you the Iced Latte."],
+      ["MENTOR", "Take a plastic cup from the stack left of the machine and drop it on the ice bin in the fridge. Pull the shot into it, then pour cold milk straight from the fridge. Don't steam it!"]
+    ],
+    "cappuccino": [
+      ["MENTOR", "New on the menu: Cappuccino. It's a latte with much more foam."],
+      ["MENTOR", "Keep the pitcher low under the steam wand for longer, so the froth marker reaches the higher green zone. Cocoa on top at the topping station."]
+    ],
+    "iced_gula_melaka_latte": [
+      ["MENTOR", "New on the menu: Iced Gula Melaka Latte. Very Malaysian, very popular."],
+      ["MENTOR", "Make an iced latte, then add 2 pumps of gula melaka at the topping station."]
+    ],
+    "mocha": [
+      ["MENTOR", "Mocha is on the menu now: coffee meets chocolate."],
+      ["MENTOR", "Make a latte, then add 2 pumps of chocolate and a swirl of whipped cream."]
+    ],
+    "kopi_susu_ais": [
+      ["MENTOR", "Our own Kopi Susu Ais, kopitiam style! Customers will love this one."],
+      ["MENTOR", "Ice in a plastic cup, a double espresso, then 2 pumps of condensed milk. No fresh milk at all."]
+    ],
+    "caramel_macchiato": [
+      ["MENTOR", "Last one for now: Caramel Macchiato."],
+      ["MENTOR", "A latte with 1 pump of vanilla and 2 pumps of caramel. Sweet tooth special!"]
+    ]
+  },
+  "new_recipe_generic": "New recipe unlocked: %s! Check the Recipe Book for the steps.",
+  "vague_intro": [
+    ["MENTOR", "Some customers just describe what they want instead of saying the name."],
+    ["MENTOR", "Listen carefully and check the Recipe Book to work out which drink it is!"]
+  ],
+  "lines": {
+    "double_espresso_training": ["One double espresso, please.", "Double espresso. I need to wake up!", "Espresso, double. Quick, ya?"],
+    "latte": ["A latte, please.", "One hot latte for me.", "Latte, please. Not too hot to drink, okay?"],
+    "gula_melaka_latte": ["One Gula Melaka Latte, please!", "Gula Melaka Latte. My favourite!", "Can I get a Gula Melaka Latte?"],
+    "iced_latte": ["So hot outside... Iced Latte, please!", "One Iced Latte, extra cold!", "Iced Latte, please."],
+    "cappuccino": ["One cappuccino, please.", "Cappuccino, extra foamy!", "A cappuccino for me, thanks."],
+    "iced_gula_melaka_latte": ["Iced Gula Melaka Latte, please. Panas gila today!", "One Iced Gula Melaka Latte!", "Something sweet and cold... Iced Gula Melaka Latte."],
+    "mocha": ["One mocha, please!", "Mocha with lots of cream!", "Can I have a mocha?"],
+    "kopi_susu_ais": ["Kopi susu ais satu!", "One Kopi Susu Ais, boss.", "Kopi Susu Ais, please. Like the kopitiam!"],
+    "caramel_macchiato": ["Caramel Macchiato, please.", "One Caramel Macchiato, extra sweet!", "Caramel Macchiato for me."]
+  },
+  "pair_line": "Two %s, please. One is for my friend.",
+  "kaw_overrides": {
+    "display_name": "Double Espresso (kaw)",
+    "target_yield_g": 30,
+    "extraction_time_min_s": 20,
+    "extraction_time_max_s": 25
+  }
+}

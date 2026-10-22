@@ -4,11 +4,11 @@ extends SceneTree
 ## rendered straight at the sprite's pixel size (no AA) for crisp pixels.
 ## Run (needs a window, not --headless):
 ##   Godot_console.exe --path . --script res://tools/render_sprites.gd
-## A sprite is skipped if a file of that name is marked as hand-made in KEEP below.
+## A sprite is skipped if it is listed in assets/art/KEEP.txt (real art, see import_art.gd).
 
 const OUT := "res://assets/art/"
 const PITCH := -14.0
-const KEEP := []  # file names (without .png) replaced by AI/pack art; never overwrite these
+var KEEP: Array = ArtKeep.names()  # replaced by real art (assets/art/KEEP.txt); never overwrite
 
 var jobs := []
 
@@ -37,9 +37,11 @@ func _initialize() -> void:
 		["syrup_chocolate", Vector2i(44, 96), func(n): Props.syrup_bottle(n, Color("#5A2F1A"))],
 		["syrup_pandan", Vector2i(44, 96), func(n): Props.syrup_bottle(n, Color("#7DBF5A"))],
 		["syrup_gula_melaka", Vector2i(44, 96), func(n): Props.syrup_bottle(n, Color("#8A4A22"))],
+		["syrup_condensed_milk", Vector2i(44, 96), func(n): Props.syrup_bottle(n, Color("#F4EBD0"))],
 		["topping_cream", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#FBF6EC"))],
 		["topping_choc_chips", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#4A2614"))],
 		["topping_cinnamon", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#A0623A"), false)],
+		["topping_cocoa", Vector2i(70, 50), func(n): Props.topping_box(n, Color("#6B3A20"), false)],
 	]
 	for who in Bar3D.LOOKS:
 		for happy in [false, true]:
@@ -135,7 +137,7 @@ func render(sprite_name: String, size: Vector2i, build: Callable, opts: Dictiona
 	var e := Environment.new()
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("#FFF1E0")
+	e.ambient_light_color = Color("#FFF8F0")  # neutral daylight like the café
 	e.ambient_light_energy = 0.75
 	env.environment = e
 	vp.add_child(env)

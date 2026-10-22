@@ -1,28 +1,24 @@
 class_name CounterScreen
 extends Control
-## Front counter, laid out like the reference café sim: an evening KL skyline through the
-## window, customers' heads and shoulders behind a dark wooden counter, an order bubble
-## with drink icons and a yellow patience bar, and the bar equipment along the counter.
-## World is 640x360 base pixels drawn x2 with a warm evening tint; art from res://assets/art/.
+## The café while the player is idle (talking, waiting, serving): the 3D café rendered as
+## isometric pixel art, cut away like a dollhouse so the whole room is visible
+## (Bar3D in its "iso" view). Customers walk in from the door to the front counter.
+## On top: an order bubble with drink icons and a yellow patience bar that follows the
+## customer. Drinks are made at the separate 2D station (EspressoStation).
 
 const ART := "res://assets/art/%s.png"
-const SCALE := 2
-const CUSTOMER_AT := Vector2(200, 58)
-const MENTOR_AT := Vector2(470, 70)
-const OFFSTAGE := Vector2(-150, 58)
-const BUBBLE_AT := Vector2(52, 40)  # order bubble, left of the customer
+const SCALE := 2  # overlay art is drawn x2
+const BUBBLE_OFFSET := Vector2(-150, -60)  # bubble top-left from the customer's head (base px), to its left
 const BUBBLE_SIZE := Vector2(132, 140)
-const CUP_AT := Vector2(306, 238)  # served drink on the work mat
+const QUEUE_SPOT := CafeRoom.QUEUE_SPOT  # next customer waits here
 const COFFEE := Color("#4A2A18")
-const EVENING := Color(1.0, 0.92, 0.86)  # warm light over everything
+const EVENING := Color(1.0, 0.92, 0.86)  # warm light used by the station screens
 
-var world: Node2D
-var mentor: Sprite2D
-var customer: Sprite2D
-var queue_shadow: Sprite2D  # the next customer waiting behind
-var customer_look := ""
-var served_cup: Sprite2D
-var emote_label: Label
+var cafe: Bar3D
+var overlay: Node2D  # 2D bits drawn over the 3D café
+var mentor: Node3D
+var customer: Node3D
+var queue_person: Node3D
 var order_bubble: Node2D
 var order_icons: Node2D
 var patience_fill: ColorRect
@@ -31,36 +27,23 @@ var patience_fill: ColorRect
 func _ready() -> void:
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_IGNORE
-	world = Node2D.new()
-	world.scale = Vector2(SCALE, SCALE)
-	world.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	world.modulate = EVENING
-	add_child(world)
-	sprite("counter_bg", Vector2.ZERO)
-	queue_shadow = sprite("char_office", Vector2(318, 74))
-	queue_shadow.modulate = Color(0.45, 0.38, 0.5)
-	queue_shadow.scale = Vector2(0.85, 0.85)
-	queue_shadow.hide()
-	mentor = sprite("char_mentor", MENTOR_AT)
-	customer = sprite("char_student", OFFSTAGE)
-	customer.hide()
-	sprite("counter_front", Vector2(0, 200))
-	decorate_counter()
-	served_cup = sprite("cup_espresso", CUP_AT)
-	var fill := ColorRect.new()
-	fill.color = COFFEE
-	fill.position = Vector2(5, 14)
-	fill.size = Vector2(26, 18)
-	served_cup.add_child(fill)
-	served_cup.hide()
+	cafe = Bar3D.new()
+	add_child(cafe)
+	cafe.set_view("iso", false)
+	mentor = cafe.mentor
+	overlay = Node2D.new()
+	overlay.scale = Vector2(SCALE, SCALE)
+	overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(overlay)
 	build_order_bubble()
-	emote_label = Label.new()
-	emote_label.add_theme_font_size_override("font_size", 40)
-	emote_label.add_theme_color_override("font_color", Color("#FFE066"))
-	emote_label.add_theme_color_override("font_outline_color", Color("#36251D"))
-	emote_label.add_theme_constant_override("outline_size", 10)
-	emote_label.mouse_filter = MOUSE_FILTER_IGNORE
-	add_child(emote_label)
+
+
+func _process(_delta: float) -> void:
+	customer = cafe.customer
+	if order_bubble.visible and customer:
+		var head := cafe.camera.unproject_position(customer.position + Vector3(0, 1.1, 0))  # chibi head height
+		var at := head * cafe.container.stretch_shrink / SCALE + BUBBLE_OFFSET
+		order_bubble.position = at.clamp(Vector2(4, 26), Vector2(636, 356) - BUBBLE_SIZE)  # stay on screen, below the HUD
 
 
 func tex(n: String) -> Texture2D:
@@ -73,28 +56,14 @@ func sprite(n: String, at: Vector2, s := 1.0, parent: Node = null) -> Sprite2D:
 	sp.centered = false
 	sp.position = at
 	sp.scale = Vector2(s, s)
-	(parent if parent else world).add_child(sp)
+	(parent if parent else overlay).add_child(sp)
 	return sp
 
 
-## Bar equipment along the counter (decor here; drinks are made at the station).
-func decorate_counter() -> void:
-	sprite("machine", Vector2(6, 176), 0.44)
-	sprite("pitcher", Vector2(150, 236), 0.8)
-	sprite("cup_latte", Vector2(160, 214), 0.6)
-	for i in 4:
-		sprite("syrup_" + ["vanilla", "gula_melaka", "pandan", "chocolate"][i], Vector2(470 + i * 38, 196), 0.8)
-	for i in 3:  # cups on the shelf under the counter
-		sprite("cup_latte", Vector2(14 + i * 44, 318), 0.7)
-		sprite("cup_espresso", Vector2(178 + i * 40, 320), 0.8)
-	sprite("bean_bag", Vector2(586, 300), 0.8)
-
-
-## Grey order bubble with the drink icons and a yellow patience bar (reference style).
+## Grey order bubble with the drink icons and a yellow patience bar.
 func build_order_bubble() -> void:
 	order_bubble = Node2D.new()
-	order_bubble.position = BUBBLE_AT
-	world.add_child(order_bubble)
+	overlay.add_child(order_bubble)
 	var frame := Panel.new()
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color("#8C8A94")
@@ -105,9 +74,9 @@ func build_order_bubble() -> void:
 	frame.size = BUBBLE_SIZE
 	frame.mouse_filter = MOUSE_FILTER_IGNORE
 	order_bubble.add_child(frame)
-	var tail := Polygon2D.new()  # points at the customer
-	tail.polygon = PackedVector2Array([Vector2(BUBBLE_SIZE.x - 1, 60), Vector2(BUBBLE_SIZE.x + 10, 70),
-		Vector2(BUBBLE_SIZE.x - 1, 80)])
+	var tail := Polygon2D.new()  # points down-right at the customer
+	tail.polygon = PackedVector2Array([Vector2(BUBBLE_SIZE.x - 30, BUBBLE_SIZE.y - 1),
+		Vector2(BUBBLE_SIZE.x + 8, BUBBLE_SIZE.y + 22), Vector2(BUBBLE_SIZE.x - 10, BUBBLE_SIZE.y - 1)])
 	tail.color = Color("#8C8A94")
 	order_bubble.add_child(tail)
 	var bar_bg := ColorRect.new()
@@ -126,16 +95,29 @@ func build_order_bubble() -> void:
 
 
 ## Shows what the customer wants: the cup, plus small icons for syrups and toppings.
-func show_order(recipe: Dictionary) -> void:
+## `count` > 1 draws a second cup behind the first. A vague order shows only a "?".
+func show_order(recipe: Dictionary, count := 1, vague := false) -> void:
 	for c in order_icons.get_children():
 		c.queue_free()
+	if vague:
+		var q := Label.new()
+		q.text = "?"
+		q.add_theme_font_size_override("font_size", 72)
+		q.add_theme_color_override("font_color", Color("#F5E7CA"))
+		q.position = Vector2(48, 10)
+		order_icons.add_child(q)
+		set_patience(1.0)
+		order_bubble.show()
+		return
 	var cup_kind: String = recipe.get("cup", "glass")
-	var cup := sprite("cup_latte" if cup_kind == "cup" else "cup_espresso", Vector2(36, 18), 1.2, order_icons)
-	var fill := ColorRect.new()
-	fill.color = Color("#E9D2B0") if recipe.has("milk") else COFFEE
-	fill.position = Vector2(11, 3) if cup_kind == "cup" else Vector2(5, 14)
-	fill.size = Vector2(30, 7) if cup_kind == "cup" else Vector2(26, 18)
-	cup.add_child(fill)
+	var inside: Rect2 = EspressoStation.CUPS[cup_kind].inside
+	for k in range(count - 1, -1, -1):
+		var cup := sprite(EspressoStation.CUPS[cup_kind].tex, Vector2(36 - k * 18, 18 - k * 6), 1.2, order_icons)
+		var fill := ColorRect.new()
+		fill.color = Color("#E9D2B0") if recipe.has("milk") else COFFEE
+		fill.position = inside.position + Vector2(0, inside.size.y * 0.3)
+		fill.size = Vector2(inside.size.x, inside.size.y * 0.7)
+		cup.add_child(fill)
 	var x := 24.0
 	for s in recipe.get("syrups", {}):
 		for i in int(recipe.syrups[s]):
@@ -155,82 +137,61 @@ func set_patience(p: float) -> void:
 	patience_fill.color = Color("#E8D44A") if p > 0.3 else Color("#E0603A")
 
 
+## Shows the decorations the player bought (SaveGame.DECOR ids) in the café.
+func set_decor(ids: Array) -> void:
+	cafe.set_decor(ids)
+
+
 func hide_order() -> void:
 	order_bubble.hide()
 
 
+## The next customer waits by the door, facing the counter ("" = nobody waiting).
 func show_queue(look: String) -> void:
-	if look == "":
-		queue_shadow.hide()
-	else:
-		queue_shadow.texture = tex("char_" + look)
-		queue_shadow.show()
+	if queue_person:
+		queue_person.queue_free()
+		queue_person = null
+	if look != "":
+		queue_person = cafe.add_person(look, QUEUE_SPOT)
+		queue_person.rotation_degrees.y = CafeRoom.CUSTOMER_FACING
 
 
-## Customer slides in from the left and fades in; returns the tween to await.
+## Customer walks in from the door to the counter; returns the tween to await.
 func customer_enter(look: String) -> Tween:
-	customer_look = look
-	customer.texture = tex("char_" + look)
-	customer.position = OFFSTAGE
-	customer.modulate.a = 0.0
-	customer.show()
-	var t := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_property(customer, "position", CUSTOMER_AT, 0.7)
-	t.tween_property(customer, "modulate:a", 1.0, 0.5)
+	show_queue("")  # the waiting customer is the one walking up now
+	var t := cafe.customer_enter(look)
+	customer = cafe.customer
 	return t
 
 
 func customer_leave() -> Tween:
 	hide_order()
-	var t := create_tween().set_parallel().set_trans(Tween.TRANS_SINE)
-	t.tween_property(customer, "position", OFFSTAGE, 0.6)
-	t.tween_property(customer, "modulate:a", 0.0, 0.6)
-	t.chain().tween_callback(customer.hide)
-	return t
+	customer = null
+	return cafe.customer_leave()
 
 
-func set_happy(on: bool) -> void:
-	if customer_look != "":
-		customer.texture = tex("char_" + customer_look + ("_happy" if on else ""))
+## The 3D characters have one face; reactions show as emotes instead.
+func set_happy(_on: bool) -> void:
+	pass
 
 
-func set_mentor_happy(on: bool) -> void:
-	mentor.texture = tex("char_mentor" + ("_happy" if on else ""))
+func set_mentor_happy(_on: bool) -> void:
+	pass
 
 
 ## Small hop on whoever is speaking (null = the player, nobody hops).
 func hop(who: Node) -> void:
-	if who == null:
-		return
-	var s := who as Sprite2D
-	var base_y := MENTOR_AT.y if s == mentor else CUSTOMER_AT.y
-	var t := create_tween()
-	t.tween_property(s, "position:y", base_y - 4, 0.08)
-	t.tween_property(s, "position:y", base_y, 0.12)
+	cafe.hop(who)
 
 
 ## Shows a short reaction above someone's head for a moment.
 func emote(who: Node, text: String, time := 1.6) -> void:
-	if who == null:
-		return
-	var s := who as Sprite2D
-	emote_label.text = text
-	emote_label.reset_size()
-	emote_label.position = (s.position + Vector2(78, 4)) * SCALE
-	emote_label.show()
-	var t := create_tween()
-	t.tween_interval(time)
-	t.tween_callback(emote_label.hide)
+	cafe.emote(who, text, time)
 
 
-func show_served_cup(kind := "glass") -> void:
-	served_cup.texture = tex("cup_latte" if kind == "cup" else "cup_espresso")
-	var fill: ColorRect = served_cup.get_child(0)
-	fill.position = Vector2(11, 3) if kind == "cup" else Vector2(5, 14)
-	fill.size = Vector2(30, 7) if kind == "cup" else Vector2(26, 18)
-	fill.color = Color("#E9D2B0") if kind == "cup" else COFFEE
-	served_cup.show()
+func show_served_cup(_kind := "glass") -> void:
+	cafe.show_served_cup()
 
 
 func hide_served_cup() -> void:
-	served_cup.hide()
+	cafe.hide_served_cup()

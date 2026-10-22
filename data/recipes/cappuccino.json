@@ -1,0 +1,17 @@
+{
+  "recipe_id": "cappuccino",
+  "display_name": "Cappuccino",
+  "unlock_level": 2,
+  "latte_art": true,
+  "riddles": ["Hot coffee with lots of foam on top, and a little chocolate dust.", "Something foamy and warm. Cocoa on top, please."],
+  "cup": "cup",
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "milk": {"temp_min": 60, "temp_max": 65, "foam_min": 0.5, "foam_max": 0.7},
+  "toppings": ["cocoa"],
+  "ingredients": ["18 g ground coffee", "36 g espresso", "Steamed milk, 60–65°C, lots of foam", "A dusting of cocoa powder"],
+  "steps": "Like a latte, but foamier: keep the pitcher low under the steam wand for longer so the froth marker reaches the higher green zone. Pour, then dust cocoa on top at the topping station."
+}

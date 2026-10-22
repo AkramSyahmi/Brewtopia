@@ -3,9 +3,11 @@ extends PanelContainer
 ## Recipe book overlay (GCGC style): a list of drinks on the left, ingredients and
 ## steps for the selected drink on the right. Reads data/recipes/*.json.
 
-const RECIPES := ["double_espresso_training", "latte", "gula_melaka_latte"]
+const RECIPES := ["double_espresso_training", "latte", "gula_melaka_latte", "iced_latte", "cappuccino",
+	"iced_gula_melaka_latte", "mocha", "kopi_susu_ais", "caramel_macchiato"]  # menu order
 const RECIPE_PATH := "res://data/recipes/%s.json"
 
+var buttons := {}  # id -> {button, recipe}
 var name_label: Label
 var ingredients: Label
 var steps: Label
@@ -31,16 +33,21 @@ func _ready() -> void:
 	row.add_child(list)
 	var heading := text("Recipe Book", 30, Color("#BE895B"))
 	list.add_child(heading)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list.add_child(scroll)
+	var entries := VBoxContainer.new()
+	entries.add_theme_constant_override("separation", 8)
+	scroll.add_child(entries)
 	for id in RECIPES:
 		var r := EspressoModel.load_recipe(RECIPE_PATH % id)
 		var b := Button.new()
 		b.text = r.display_name
-		b.custom_minimum_size = Vector2(260, 56)
+		b.custom_minimum_size = Vector2(250, 48)
 		b.pressed.connect(show_recipe.bind(r))
-		list.add_child(b)
-	var spacer := Control.new()
-	spacer.size_flags_vertical = SIZE_EXPAND_FILL
-	list.add_child(spacer)
+		entries.add_child(b)
+		buttons[id] = {"button": b, "recipe": r}
 	var close := Button.new()
 	close.text = "Close"
 	close.custom_minimum_size = Vector2(260, 56)
@@ -69,6 +76,17 @@ func text(t: String, size: int, c: Color) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", c)
 	return l
+
+
+## Shows the book with recipes above the player's level locked.
+func open(level: int) -> void:
+	for id in buttons:
+		var b: Button = buttons[id].button
+		var r: Dictionary = buttons[id].recipe
+		var need := int(r.get("unlock_level", 1))
+		b.disabled = need > level
+		b.text = r.display_name if need <= level else "Locked  (Lv %d)" % need
+	show()
 
 
 func show_recipe(r: Dictionary) -> void:

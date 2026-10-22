@@ -1,0 +1,67 @@
+{
+  "points": {"Perfect Brew": 3, "Great Cup": 2, "Good Effort": 1},
+  "hearts_at": [4, 10, 18],
+  "tip_bonus_per_heart": 0.1,
+  "beats": {
+    "STUDENT_REGULAR": [
+      [
+        ["STUDENT_REGULAR", "Hey, it's you again! Your coffee got me through my midterm last week."],
+        ["STUDENT_REGULAR", "I'm studying engineering at the uni down the road. Finals are coming..."]
+      ],
+      [
+        ["STUDENT_REGULAR", "Bad news: I failed my first finals paper. I studied until 4 AM and still blanked out."],
+        ["CHOICE", ["You'll get the next one. Get some sleep, okay?", "Want to study here? The corner table is quiet."]],
+        ["STUDENT_REGULAR", "Thanks... that actually helps."]
+      ],
+      [
+        ["STUDENT_REGULAR", "I PASSED! All of them! My mak cried on the phone."],
+        ["STUDENT_REGULAR", "Next round is on me. Well... after I get my scholarship money. Haha!"]
+      ]
+    ],
+    "CUSTOMER": [
+      [
+        ["CUSTOMER", "You remembered my order. Most places don't even look up."],
+        ["CUSTOMER", "I work at the bank tower across the road. Long hours, lots of meetings."]
+      ],
+      [
+        ["CUSTOMER", "My manager put me up for a promotion. The interview is next week."],
+        ["CHOICE", ["You'll do great. You're here early every day!", "Just be yourself. And have a good coffee first."]],
+        ["CUSTOMER", "Ha. I'll come here before the interview, then."]
+      ],
+      [
+        ["CUSTOMER", "I got it. Branch manager! First thing I did was walk here."],
+        ["CUSTOMER", "I'm bringing my whole team on Friday. Get ready!"]
+      ]
+    ],
+    "COFFEE_ENTHUSIAST": [
+      [
+        ["COFFEE_ENTHUSIAST", "Your shots are getting better. I can taste it, you know."],
+        ["COFFEE_ENTHUSIAST", "I've been roasting beans at home for years. Small batches, Malaysian liberica."]
+      ],
+      [
+        ["COFFEE_ENTHUSIAST", "I'm thinking of selling my beans. A small stall at the weekend market."],
+        ["CHOICE", ["Do it! I'd buy a bag.", "Bring some here. Let's try them on our machine!"]],
+        ["COFFEE_ENTHUSIAST", "Hmm. Maybe I will."]
+      ],
+      [
+        ["COFFEE_ENTHUSIAST", "The stall sold out in two hours! Liberica from Johor, people loved it."],
+        ["COFFEE_ENTHUSIAST", "When I open a real roastery, your café gets first pick. Promise."]
+      ]
+    ],
+    "MAKCIK": [
+      [
+        ["MAKCIK", "Adik, you're so polite. Just like my grandson."],
+        ["MAKCIK", "He lives in KL now. Works with computers, always busy."]
+      ],
+      [
+        ["MAKCIK", "My grandson hasn't called for two weeks. I worry, you know..."],
+        ["CHOICE", ["Maybe send him a voice note, Makcik?", "He's lucky to have you worrying about him."]],
+        ["MAKCIK", "Voice note... yes, my neighbour showed me how. I'll try."]
+      ],
+      [
+        ["MAKCIK", "He called! He's coming home for Raya, and bringing his new wife!"],
+        ["MAKCIK", "I'll bring you some kuih for Raya. Don't say no, ya!"]
+      ]
+    ]
+  }
+}

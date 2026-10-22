@@ -1,6 +1,8 @@
 {
   "recipe_id": "double_espresso_training",
   "display_name": "Double Espresso",
+  "unlock_level": 1,
+  "riddles": ["Something small and strong. No milk, no sugar.", "Just coffee. Pure, black, a short double shot."],
   "cup": "glass",
   "dose_g": 18,
   "target_yield_g": 36,

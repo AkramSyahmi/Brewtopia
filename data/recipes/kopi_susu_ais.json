@@ -1,0 +1,16 @@
+{
+  "recipe_id": "kopi_susu_ais",
+  "display_name": "Kopi Susu Ais",
+  "unlock_level": 4,
+  "riddles": ["Like the kopitiam: cold coffee, sweet with condensed milk.", "Something cold and kaw-sweet, with susu pekat. No fresh milk."],
+  "cup": "iced",
+  "ice": true,
+  "dose_g": 18,
+  "target_yield_g": 36,
+  "extraction_time_min_s": 25,
+  "extraction_time_max_s": 30,
+  "grind_ideal": 5,
+  "syrups": {"condensed_milk": 2},
+  "ingredients": ["18 g ground coffee", "36 g espresso", "A scoop of ice", "2 pumps condensed milk (susu pekat)"],
+  "steps": "The kopitiam classic. Put ice in a plastic cup, pull a double espresso into it, then add 2 pumps of condensed milk at the topping station. No fresh milk!"
+}
