@@ -16,13 +16,7 @@ var decor_page: VBoxContainer
 
 
 func _ready() -> void:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color("#FBF4EA")
-	s.border_color = Color("#65422F")
-	s.set_border_width_all(4)
-	s.set_corner_radius_all(18)
-	s.set_content_margin_all(24)
-	add_theme_stylebox_override("panel", s)
+	add_theme_stylebox_override("panel", PixelUI.cream_panel())  # pixel cream sign, gold rim
 	position = Vector2(190, 60)
 	custom_minimum_size = Vector2(900, 600)
 	var col := VBoxContainer.new()

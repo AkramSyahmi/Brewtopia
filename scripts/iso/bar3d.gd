@@ -18,6 +18,7 @@ const MAX_YIELD_G := 70.0
 const CUP_FULL_G := 40.0
 const EYE := Vector3(-0.05, 1.72, 0.85)
 const EYE_PITCH := -32.0
+const MENTOR_IDLE_YAW := -30.0  # no customer: three-quarters towards the camera (face shows)
 
 const MACHINE_AT := Vector3(-0.6, COUNTER_Y, -0.3)
 const GRINDER_AT := Vector3(0.0, COUNTER_Y, -0.38)
@@ -100,7 +101,7 @@ func _ready() -> void:
 	highlight.set_shader_parameter("width_px", 1.0)
 
 	build_room()
-	machine = Props.espresso_machine(world, MACHINE_AT, Props.BLACK, Color("#C9A06E"))  # reference colours
+	machine = Props.espresso_machine(world, MACHINE_AT, Props.BLACK, Color("#D9A05A"))  # charcoal + golden wood, as the station machine
 	grinder = Props.grinder(world, GRINDER_AT)
 	Props.tamp_mat(world, MAT_AT)
 	Props.knock_box(world, KNOCK_AT)
@@ -115,6 +116,7 @@ func _ready() -> void:
 		"group": machine.to_global(Vector3(0, 0.215, 0.13)),
 		"tray": machine.to_global(Vector3(0, 0.113, 0.13)),
 	}
+	steam_wisps(machine.to_global(Vector3(0, 0.2, 0.17)))
 	pf = Props.portafilter(world)
 	pf.position = spots.mat
 	pickable(pf, "pf", Vector3(0.11, 0.05, 0.3), Vector3(0, 0, 0.09))
@@ -130,8 +132,20 @@ func _ready() -> void:
 	update_pf()
 	dose_bubble = bubble()
 	mentor = add_person("mentor", CafeRoom.MENTOR_SPOT)
-	mentor.rotation_degrees.y = 25.0
+	mentor.rotation_degrees.y = MENTOR_IDLE_YAW
 	cup_bubble = bubble()
+
+
+## Gentle steam from the group head: three see-through puffs rising, drifting and fading in turn.
+func steam_wisps(at: Vector3) -> void:
+	for k in 3:
+		var w := CafeRoom.overlay(world, Vector3.ONE * 0.045, at, Color(1, 1, 1, 0.75))
+		w.transparency = 1.0
+		get_tree().create_timer(k * 0.6).timeout.connect(func():
+			var t := w.create_tween().set_loops().set_parallel()
+			t.tween_property(w, "position", at + Vector3(0.03 * (k - 1), 0.26, 0), 1.8).from(at)
+			t.tween_property(w, "transparency", 1.0, 1.8).from(0.2)
+			t.tween_property(w, "scale", Vector3.ONE * 1.8, 1.8).from(Vector3.ONE))
 
 
 func bubble() -> Label:
@@ -209,7 +223,8 @@ const ISO_PITCH := 30.0
 const ISO_YAW := -45.0
 const ISO_DIST := 18.0
 const ISO_FOV := 16.0
-const ISO_SIZE := 2.6  # orthographic view height in metres (smaller = closer)
+const ISO_SIZE := 2.9  # orthographic view height in metres (smaller = closer); 2.6 framed too tight
+const WALK_SPEED := 0.9  # m/s, customers on the café floor (walk_path)
 const LOOKS := {
 	# "model" = Kenney mini character (CC0) used in the café; the colours are the old
 	# blocky fallback (tools/render_sprites.gd).
@@ -269,43 +284,68 @@ func set_decor(ids: Array) -> void:
 
 func add_person(look_name: String, at: Vector3) -> Node3D:
 	var p := Props.person(world, LOOKS[look_name])
+	p.set_meta("look", look_name)
 	p.position = at
 	return p
 
 
-## Walks a person along the floor to `to`, facing the way they walk, with a small bob.
-func walk(p: Node3D, to: Vector3, time := 1.6) -> Tween:
-	var d := to - p.position
-	p.rotation_degrees.y = rad_to_deg(atan2(d.x, d.z))
-	var t := create_tween()
-	if p.has_meta("anim"):  # Kenney character: real walk cycle
-		Props.play(p, "walk")
-		t.tween_property(p, "position", to, time)
-		t.tween_callback(Props.play.bind(p, "idle"))
-		return t
-	var body: Node3D = p.get_node("Body")
-	var bob := create_tween().set_loops(int(time / 0.3))
-	bob.tween_property(body, "position:y", 0.04, 0.15)
-	bob.tween_property(body, "position:y", 0.0, 0.15)
-	t.tween_property(p, "position", to, time)
+## Walks a person through floor `points` at WALK_SPEED with the looping walk cycle (stepping at
+## that speed), turning smoothly into each leg; `settle` eases into the last stop. Then idle.
+## The tween belongs to the person (it dies with them) and replaces any walk they were on.
+func walk_path(p: Node3D, points: Array, settle := true) -> Tween:
+	if p.has_meta("walk"):
+		(p.get_meta("walk") as Tween).kill()
+	Props.play(p, "walk", WALK_SPEED / Props.WALK_CLIP_SPEED)
+	var t := p.create_tween()
+	p.set_meta("walk", t)
+	var from := p.position
+	for i in points.size():
+		var to: Vector3 = points[i]
+		var d := to - from
+		t.tween_callback(turn.bind(p, rad_to_deg(atan2(d.x, d.z)), 0.2))
+		var step := t.tween_property(p, "position", to, d.length() / WALK_SPEED)
+		if settle and i == points.size() - 1:
+			step.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		from = to
+	t.tween_callback(Props.play.bind(p, "idle"))
 	return t
 
 
-func customer_enter(look_name: String) -> Tween:
+## A customer walks up to the counter: `walker` (the one already waiting in line) or a new
+## person from off-screen. Returns the tween to await (they have arrived and face the counter).
+func customer_enter(look_name: String, walker: Node3D = null) -> Tween:
 	if customer:
 		customer.queue_free()
-	customer = add_person(look_name, CafeRoom.DOOR_SPOT)
-	var t := walk(customer, CafeRoom.CUSTOMER_SPOT)
+	customer = walker if walker else add_person(look_name, CafeRoom.ENTRANCE)
+	var t := walk_path(customer, [CafeRoom.CUSTOMER_SPOT])
 	t.tween_property(customer, "rotation_degrees:y", CafeRoom.CUSTOMER_FACING, 0.25)
+	t.tween_callback(func(): turn(mentor, yaw_towards(mentor.position, CafeRoom.CUSTOMER_SPOT)))  # greet them
 	return t
 
 
+## The customer walks off-screen and is freed only once out of view. The returned tween ends
+## when they have stepped away from the counter (about 1 m), so the next one can come up.
 func customer_leave() -> Tween:
-	var t := walk(customer, CafeRoom.DOOR_SPOT)
+	turn(mentor, MENTOR_IDLE_YAW)
 	var leaving := customer
 	customer = null
-	t.tween_callback(leaving.queue_free)
-	return t
+	walk_path(leaving, [CafeRoom.ENTRANCE], false).tween_callback(leaving.queue_free)
+	var cleared := create_tween()
+	cleared.tween_interval(1.0 / WALK_SPEED)
+	return cleared
+
+
+## Y rotation (degrees) that makes a person at `from` face `to` (people face +Z at 0).
+static func yaw_towards(from: Vector3, to: Vector3) -> float:
+	return rad_to_deg(atan2(to.x - from.x, to.z - from.z))
+
+
+## Turns a person smoothly (shortest way round) to `yaw` degrees.
+func turn(p: Node3D, yaw: float, time := 0.35) -> void:
+	if p == null:
+		return
+	var target := p.rotation_degrees.y + wrapf(yaw - p.rotation_degrees.y, -180.0, 180.0)
+	create_tween().tween_property(p, "rotation_degrees:y", target, time).set_trans(Tween.TRANS_SINE)
 
 
 ## Small hop on whoever is speaking.

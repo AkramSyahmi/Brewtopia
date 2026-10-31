@@ -2,6 +2,15 @@
   "points": {"Perfect Brew": 3, "Great Cup": 2, "Good Effort": 1},
   "hearts_at": [4, 10, 18],
   "tip_bonus_per_heart": 0.1,
+  "finale": [
+    ["MENTOR", "Before you head home, sit with me for a minute."],
+    ["MENTOR", "Look at our regulars. The student passed every paper, and our office regular runs the whole branch now."],
+    ["MENTOR", "Our coffee lover's beans sold out at the market, and Makcik's grandson is coming home for Raya."],
+    ["MENTOR", "Every one of those mornings started with a cup you made. That's what a café is for."],
+    ["CHOICE", ["I couldn't have done it without you.", "So... what's next?"]],
+    ["MENTOR", "Tomorrow the doors open at eight, same as always. Brewtopia is yours to run now."],
+    ["MENTOR", "I'll be at the corner table with a kopi. Make it a good one, ya?"]
+  ],
   "beats": {
     "STUDENT_REGULAR": [
       [

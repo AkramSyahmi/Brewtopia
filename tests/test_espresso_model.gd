@@ -55,6 +55,7 @@ func _init() -> void:
 	for g in ["Perfect Brew", "Great Cup", "Good Effort", "Needs Practice"]:
 		check(shift.reactions.has(g), "reaction for " + g)
 
+	scoring(r)
 	drinks()
 	iced_drinks()
 	days(shift)
@@ -63,6 +64,55 @@ func _init() -> void:
 	saves()
 	print("PASS" if failures == 0 else "%d FAILED" % failures)
 	quit(failures)
+
+
+## Fair scoring: green zones give full marks, small misses cost a little, big ones a lot.
+func scoring(r: Dictionary) -> void:
+	var q := func(dose: float, grind: float, yield_g: float, tamped := true) -> int:
+		return Model.evaluate(r, dose, grind, yield_g, tamped).quality
+	check(q.call(18, 5, 36) == 100, "perfect shot = 100")
+	check(q.call(18, 5, 38) == 100 and q.call(18, 5, 34) == 100, "anywhere in the green zone = full yield marks")
+	check(q.call(17.6, 5, 36) == 100, "dose inside the green bubble = full dose marks")
+	var playtest: int = q.call(18, 8, 34.4)  # the user's 62: green weight, grind 3 steps coarse
+	check(playtest >= 70 and playtest < 80, "green weight but grind 8 is Good, not Poor (%d)" % playtest)
+	check(q.call(18, 6, 36) >= 90, "one grind step off is still Excellent")
+	check(q.call(18, 7, 36) >= 80 and q.call(18, 7, 36) < 90, "two steps off is Great")
+	check(q.call(18, 5, 30) < 80, "stopped well short of the green (bar says Bad) is not Great")
+	check(q.call(18, 5, 20) < 70, "stopped far too early is punished")
+	check(q.call(18, 1, 36) < 70, "far too fine is punished")
+	check(q.call(18, 5, 36, false) < 90, "forgetting to tamp costs a grade")
+	check(Model.evaluate(r, 15, 9, 25, false).grade == "Failed Order", "everything wrong fails")
+	check(Model.grade_label(95) == "Excellent" and Model.grade_label(85) == "Great" and Model.grade_label(75) == "Good"
+		and Model.grade_label(65) == "Needs Improvement" and Model.grade_label(50) == "Poor", "grade labels")
+	check(Model.evaluate(r, 16, 5, 36).parts.flow == 100.0, "a dose mistake is only charged once (dose part, not time)")
+	check(absf(Model.pace_s(r, 8) - 14.1) < 0.2, "grind 8 runs at ~14 s pace")
+	for f in DirAccess.get_files_at("res://data/recipes"):  # every recipe's targets are reachable together
+		if f.ends_with(".json"):
+			var rec := Model.load_recipe("res://data/recipes/" + f)
+			check(Model.evaluate(rec, rec.dose_g, rec.grind_ideal, rec.target_yield_g).quality == 100, f + ": targets reachable")
+	var kaw := r.duplicate()
+	kaw.merge({"target_yield_g": 30, "extraction_time_min_s": 20, "extraction_time_max_s": 25}, true)
+	check(Model.evaluate(kaw, 18, 5, 30).quality == 100, "order override targets reachable")
+	# mentor: praise what went right, one fix, tone by score
+	var shot := {"dose": 18.0, "grind": 8, "tamped": true, "yield": 34.4, "cup": "glass", "milk_temp": -1.0, "syrups": {}, "toppings": []}
+	var note: String = Drink.evaluate(r, shot).tip
+	check(note.begins_with("Good job") and note.contains("the dose and the yield") and note.contains("finer"),
+		"user's shot: praise + grind fix (%s)" % note)
+	shot.grind = 5
+	shot.yield = 36.0
+	check(Drink.evaluate(r, shot).tip.begins_with("Excellent work! Your measurements"), "perfect: pure praise")
+	shot.dose = 15.0
+	shot.tamped = false
+	shot.grind = 9
+	check(Drink.evaluate(r, shot).tip.begins_with("Not quite") and Drink.evaluate(r, shot).tip.contains("less coffee"),
+		"poor: kind, one root-cause fix")
+	var latte := Model.load_recipe("res://data/recipes/latte.json")
+	var good := {"dose": 18, "grind": 5, "tamped": true, "yield": 36, "cup": "cup", "milk_temp": 62.0,
+		"milk_foam": 0.3, "art": 0.9, "syrups": {}, "toppings": []}
+	check(Drink.evaluate(latte, good).score == 100, "perfect latte = 100")
+	var coarse := good.duplicate(true)
+	coarse.grind = 8
+	check(Drink.evaluate(latte, coarse).score < 90, "a coarse shot keeps a latte out of Excellent")
 
 
 func iced_drinks() -> void:

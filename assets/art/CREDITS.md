@@ -15,3 +15,7 @@ Everything else in the café (counter, espresso machine, grinders, walls) is bui
 
 | Sprite | Source file | Source / licence |
 |---|---|---|
+| `assets/fonts/PixelifySans.ttf` (title menu font) | google/fonts `ofl/pixelifysans/PixelifySans[wght].ttf` | Pixelify Sans, © 2021 The Pixelify Sans Project Authors (github.com/eifetx/Pixelify-Sans), SIL Open Font License 1.1 (licence text: `assets/fonts/PixelifySans-OFL.txt`) |
+| `assets/ui/main_menu/*.png`, `assets/ui/hud/*.png` (menu + HUD frames, dialogue, ticket, icons) | painted by `tools/make_menu_art.gd` | original, made for this game |
+| `assets/fonts/Silkscreen-Bold.ttf` (result score digits) | google/fonts `ofl/silkscreen/Silkscreen-Bold.ttf` | Silkscreen, © 2001 The Silkscreen Project Authors (github.com/googlefonts/silkscreen), SIL Open Font License 1.1 (licence text: `assets/fonts/Silkscreen-OFL.txt`) |
+| `assets/fonts/BrewtopiaDigits.ttf` (number readouts) | made by `tools/make_digit_font.gd` from Silkscreen-Bold.ttf (character map cut to 0-9 . : /, glyphs unchanged) | Silkscreen, © 2001 The Silkscreen Project Authors, SIL Open Font License 1.1 (modified version; licence text: `assets/fonts/Silkscreen-OFL.txt`) |

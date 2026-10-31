@@ -32,5 +32,13 @@ static func take_beat(save: Dictionary, role: String, stories: Dictionary) -> Ar
 	return stories.beats[role][seen]
 
 
+## Every regular's story has been told to the end (the finale can play).
+static func all_stories_done(save: Dictionary, stories: Dictionary) -> bool:
+	for role in stories.beats:
+		if int(save.story_seen.get(role, 0)) < stories.beats[role].size():
+			return false
+	return true
+
+
 static func tip_multiplier(save: Dictionary, role: String, stories: Dictionary) -> float:
 	return 1.0 + float(stories.tip_bonus_per_heart) * hearts(save, role, stories)

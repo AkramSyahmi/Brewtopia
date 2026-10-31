@@ -9,6 +9,8 @@ var out := ""
 
 
 func _initialize() -> void:
+	SaveGame.path = "user://test_save.json"  # never touch the player's real save
+	SaveGame.reset()
 	shift = load("res://scenes/cafe/cafe_shift.tscn").instantiate()
 	root.add_child(shift)
 	run.call_deferred()
@@ -26,7 +28,7 @@ func run() -> void:
 	shift.advance()
 	await shot("2_choices")
 	shift.start_order(3)
-	await shot("3_makcik", 2.5)
+	await shot("3_makcik", 4.5)  # after the walk up from the line
 	shift.show_step(shift.Step.BAR)
 	var st: EspressoStation = shift.station
 	var pf: EspressoStation.Portafilter = st.pfs[0]
@@ -49,7 +51,7 @@ func run() -> void:
 		await create_timer(0.05).timeout
 	st.toggle_brew(0)
 	st.toggle_brew(1)
-	st.pitcher_milk = true
+	st.set_milk(EspressoStation.MilkState.COLD)
 	st.pitcher.position = st.STEAM_ZONE.get_center() - st.pitcher.texture.get_size() / 2
 	st.open_steam()
 	st.milk_temp = 62.0
@@ -59,7 +61,7 @@ func run() -> void:
 	st.pour_milk(cup)
 	await shot("5b_latte_art")
 	st.art_panel.finish(0.95)
-	st.pitcher_milk = true
+	st.set_milk(EspressoStation.MilkState.COLD)
 	st.pour_milk(iced)  # cold milk over ice
 	await shot("6_latte")
 	st.remove_cup(iced)

@@ -80,6 +80,8 @@ static func kenney_person(parent: Node3D, who: String) -> Node3D:
 	if not players.is_empty():
 		var anim := players[0] as AnimationPlayer
 		p.set_meta("anim", anim)
+		for clip in ["walk", "idle"]:  # imported without looping: the walk stopped after one stride and the rest was a slide
+			anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
 		anim.play("idle")
 	var emote := Label3D.new()
 	emote.name = "Emote"
@@ -94,10 +96,18 @@ static func kenney_person(parent: Node3D, who: String) -> Node3D:
 	return p
 
 
-## Plays a character animation if the person has one (Kenney characters).
-static func play(p: Node3D, anim_name: String) -> void:
+## Ground speed (m/s) the Kenney "walk" clip covers at speed 1: hips 0.28 m up, legs swinging
+## about ±0.9 rad, two steps per 0.67 s cycle. Bar3D.walk_path scales the clip to the real speed.
+const WALK_CLIP_SPEED := 1.3
+
+
+## Plays a character animation if the person has one (Kenney characters), blending briefly
+## from the last pose; `speed` scales the clip (walk: matched to the ground speed).
+static func play(p: Node3D, anim_name: String, speed := 1.0) -> void:
 	if p and p.has_meta("anim"):
-		(p.get_meta("anim") as AnimationPlayer).play(anim_name)
+		var a := p.get_meta("anim") as AnimationPlayer
+		a.speed_scale = speed
+		a.play(anim_name, 0.12)
 
 
 static func node(parent: Node3D, pos := Vector3.ZERO) -> Node3D:

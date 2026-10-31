@@ -6,16 +6,16 @@ extends RefCounted
 ## a café table with a stool, delivery boxes, and the back wall (z -2.6) with a window
 ## and a glass entrance door. Coordinates in metres.
 
-const FLOOR_A := Color("#DED6C8")
-const FLOOR_LINE := Color("#CFC6B6")
-const WALL := Color("#CDCDCB")
-const COUNTER_TOP := Color("#D8CFC1")
-const CABINET := Color("#D7B77E")
-const CABINET_DARK := Color("#B8955E")
+const FLOOR_A := Color("#E0D3BF")  # warm stone tiles (palette shared with the 2D station art)
+const FLOOR_LINE := Color("#CBBBA2")
+const WALL := Color("#D9CEBF")  # warm plaster, as behind the espresso machine
+const COUNTER_TOP := Color("#E8D7BA")
+const CABINET := Color("#C99A62")
+const CABINET_DARK := Color("#A87444")
 const STEEL := Color("#9EA3AA")
 const WOOD := Color("#8A5634")
 const FRAME := Color("#8C5A3A")
-const GLASS := Color("#BFDCE3")
+const GLASS := Color("#A9D6EA")
 const FILM := Color("#EEF3F7")
 const BOX := Color("#C9A06E")
 const BOX_TAPE := Color("#DCC29A")
@@ -28,8 +28,19 @@ const SERVE_SPOT := Vector3(2.25, TOP_Y, -0.45)  # finished drink waits here, in
 const CUSTOMER_SPOT := Vector3(2.5, 0, -1.1)  # at the counter, right of the POS (nothing in front of their face)
 const CUSTOMER_FACING := 0.0  # rotation_degrees.y: facing +Z, towards the counter
 const QUEUE_SPOT := Vector3(-0.55, 0, -1.6)  # next customer waits here
-const DOOR_SPOT := Vector3(2.7, 0, -2.4)
-const MENTOR_SPOT := Vector3(2.45, 0, 0.45)
+## Customers arrive and leave off-screen to the right (the dollhouse view has no front wall):
+## a whole person standing at ENTRANCE is outside the iso view (checked by camera projection),
+## yet on the floor. Queuers go round behind the one at the counter via QUEUE_WAY.
+const ENTRANCE := Vector3(4.9, 0, -0.5)
+const QUEUE_WAY := Vector3(3.6, 0, -2.0)
+const MENTOR_SPOT := Vector3(1.0, 0, 0.62)  # barista side, in front of the open shelves, in view
+const CHALKBOARD_AT := Vector3(-0.9, 1.17, WALL_Z)  # menu board centre: on screen just under the speech bubble (y 224-285 at 1280x720), above the wainscot rail
+## Customer table and its chair (chair behind it, facing it), both at FURNITURE_SCALE. The chair
+## back ends at z -2.27, 27 cm in front of the dado rail (WALL_Z + 0.06); the table edge (x -1.02)
+## is 47 cm from the queue spot.
+const TABLE_AT := Vector3(-1.3, 0, -1.68)
+const CHAIR_OFFSET := Vector3(0, 0, -0.44)  # seat front 1 cm behind the table edge
+const FURNITURE_SCALE := 0.8  # table and chair, uniform: cosy, not miniature
 
 
 static func build(world: Node3D) -> void:
@@ -37,6 +48,9 @@ static func build(world: Node3D) -> void:
 	counter(world)
 	counter_items(world)
 	customer_side(world)
+	staff_mat(world)
+	contact_shadows(world)
+	sunlight(world)
 	var lamp := OmniLight3D.new()
 	lamp.position = Vector3(0, 2.4, -0.6)
 	lamp.omni_range = 4.5
@@ -64,7 +78,12 @@ static func floor_and_walls(world: Node3D) -> void:
 	f.position = Vector3(0, 0, 3.4)
 	world.add_child(f)
 	IsoKit.box(world, Vector3(12, 3.0, 0.1), Vector3(0, 1.5, WALL_Z - 0.05), WALL, false, false, false)
-	IsoKit.box(world, Vector3(12, 0.1, 0.04), Vector3(0, 0.05, WALL_Z + 0.02), Color("#B9B9B6"))  # skirting
+	# wood wainscot with plank seams and a dark dado rail (as on the topping page), wood skirting
+	IsoKit.box(world, Vector3(12, 0.7, 0.03), Vector3(0, 0.35, WALL_Z + 0.015), Color("#8E5E3A"), false, false, false)
+	for i in 30:
+		IsoKit.box(world, Vector3(0.012, 0.66, 0.005), Vector3(-6.0 + i * 0.4, 0.37, WALL_Z + 0.032), Color("#6E4428"), false, false, false)
+	IsoKit.box(world, Vector3(12, 0.05, 0.06), Vector3(0, 0.72, WALL_Z + 0.03), Color("#7A4A2A"))
+	IsoKit.box(world, Vector3(12, 0.1, 0.04), Vector3(0, 0.05, WALL_Z + 0.04), Color("#5A341C"))  # skirting
 
 	# window with a patterned privacy film on its lower half
 	var wx := 0.9
@@ -89,10 +108,7 @@ static func floor_and_walls(world: Node3D) -> void:
 	sign.modulate = Color("#F5E7CA")
 	sign.position = Vector3(dx - 0.62, 1.9, WALL_Z + 0.125)
 	world.add_child(sign)
-	# poster and a power outlet on the wall
-	IsoKit.box(world, Vector3(0.6, 0.8, 0.02), Vector3(-2.4, 1.9, WALL_Z + 0.01), Color("#2F3A30"))
-	IsoKit.box(world, Vector3(0.3, 0.3, 0.005), Vector3(-2.4, 2.0, WALL_Z + 0.025), Color("#8C6A3E"), false, false, false)
-	IsoKit.box(world, Vector3(0.22, 0.1, 0.02), Vector3(-0.35, 0.55, WALL_Z + 0.01), Color("#F2F2F0"))
+	chalkboard(world, CHALKBOARD_AT)  # menu board on the back wall, under the speech bubble
 
 
 ## The long service counter. Barista side (+Z): fridge, ice machine, open shelves.
@@ -150,21 +166,19 @@ static func counter_items(world: Node3D) -> void:
 	IsoKit.box(world, Vector3(0.04, 0.16, 0.04), pos + Vector3(0, 0.09, 0), Props.STEEL, true)
 	var screen := IsoKit.box(world, Vector3(0.42, 0.28, 0.03), pos + Vector3(0, 0.3, 0.02), Props.BLACK)
 	screen.rotation_degrees = Vector3(-15, 0, 0)
-	# cakes on plates and two iced drinks at the ends
-	for at in [Vector3(1.95, y, -0.05), Vector3(1.5, y, 0.0)]:
-		IsoKit.cyl(world, 0.14, 0.015, at + Vector3(0, 0.008, 0), Color("#A06A3E"))
-		IsoKit.cyl(world, 0.08, 0.08, at + Vector3(0, 0.055, 0), Color("#E8A0B4"))
-		IsoKit.sphere(world, 0.025, at + Vector3(0.02, 0.11, 0), Color("#C8323C"))
+	# two cakes under a glass dome, mid-counter, and two iced drinks to its left (outside it)
+	pastry_dome(world, Vector3(1.72, y, -0.22))
 	for i in 2:
-		var at := Vector3(1.25 + i * 0.3, y, -0.3 + i * 0.05)
+		var at := Vector3(1.05 + i * 0.22, y, -0.18 + i * 0.04)
 		IsoKit.cyl(world, 0.045, 0.13, at + Vector3(0, 0.065, 0), Color("#5A2E1A"), false, false, 0.05)
 		IsoKit.cyl(world, 0.052, 0.015, at + Vector3(0, 0.135, 0), Props.GLASS, false, true)
 
 
-static func table_set(world: Node3D, at: Vector3, chairs := true) -> void:
-	IsoKit.box(world, Vector3(0.7, 0.04, 0.7), at + Vector3(0, 0.74, 0), WOOD)
-	IsoKit.cyl(world, 0.03, 0.72, at + Vector3(0, 0.36, 0), Props.BLACK)
-	IsoKit.cyl(world, 0.22, 0.03, at + Vector3(0, 0.015, 0), Props.BLACK)
+static func table_set(world: Node3D, at: Vector3, chairs := true, size := 1.0) -> void:
+	# `size` scales the table uniformly from the floor up (every height and width)
+	IsoKit.box(world, Vector3(0.7, 0.04, 0.7) * size, at + Vector3(0, 0.74, 0) * size, WOOD)
+	IsoKit.cyl(world, 0.03 * size, 0.72 * size, at + Vector3(0, 0.36, 0) * size, Props.BLACK)
+	IsoKit.cyl(world, 0.22 * size, 0.03 * size, at + Vector3(0, 0.015, 0) * size, Props.BLACK)
 	if not chairs:
 		return
 	for dx in [-0.6, 0.6]:
@@ -178,12 +192,12 @@ static func table_set(world: Node3D, at: Vector3, chairs := true) -> void:
 
 ## Customer side: a table and stool, and delivery boxes.
 static func customer_side(world: Node3D) -> void:
-	# Kenney Furniture Kit (CC0) table, chairs and stool
-	Props.model(world, "furniture/tableRound", Vector3(-1.3, 0, -1.9), 0.0, 1.4)
-	Props.model(world, "furniture/chairCushion", Vector3(-1.3, 0, -1.35), 180.0, 1.6)
-	Props.model(world, "furniture/chairCushion", Vector3(-1.85, 0, -1.9), 90.0, 1.6)
-	Props.model(world, "furniture/stoolBar", Vector3(-2.3, 0, -1.0))
-	box(world, Vector3(0.6, 0.45, 0.45), Vector3(-0.1, 0, -2.3), "Beans")
+	# wooden table on a black pedestal (like the reference) and a Kenney (CC0) chair pulled out
+	# on the far side (no stool: the next customer queues next to the table)
+	table_set(world, TABLE_AT, false, FURNITURE_SCALE)
+	succulent(world, TABLE_AT + Vector3(0, 0.76 * FURNITURE_SCALE, 0))  # centred on the table top
+	Props.model(world, "furniture/chair", TABLE_AT + CHAIR_OFFSET, 0.0, 1.9 * FURNITURE_SCALE)
+	sack(world, Vector3(-0.1, 0, -2.3))  # burlap coffee sack where the plain box was
 	var lemons := box(world, Vector3(0.55, 0.42, 0.45), Vector3(-3.3, 0, -1.0), "")
 	for i in 6:  # printed lemons on the side of the box
 		IsoKit.sphere(lemons, 0.045, Vector3(-0.17 + (i % 3) * 0.17, 0.12 + (i / 3) * 0.15, 0.226), Color("#E8B83A"))
@@ -194,7 +208,7 @@ static func decor(world: Node3D, ids: Array) -> void:
 	if "plants" in ids:
 		Props.model(world, "furniture/pottedPlant", Vector3(0.4, 0, -2.3), 0.0, 2.6)
 	if "lamps" in ids:
-		for at in [Vector3(-1.3, 0, -1.9), Vector3(0.0, 0, -1.6)]:  # over the customer area
+		for at in [TABLE_AT, Vector3(0.0, 0, -1.6)]:  # over the table and the queue
 			IsoKit.cyl(world, 0.008, 0.4, at + Vector3(0, 2.85, 0), Props.BLACK)
 			Props.model(world, "furniture/lampSquareCeiling", at + Vector3(0, 2.3, 0), 0.0, 1.6)
 			var glow := OmniLight3D.new()
@@ -212,7 +226,7 @@ static func decor(world: Node3D, ids: Array) -> void:
 				IsoKit.box(world, Vector3(0.04, 0.04, 0.01), Vector3(-0.96 + k * 0.14, 1.65 - i * 0.13, WALL_Z + 0.05),
 					Color("#F5E7CA"), false, false, false)
 	if "bookshelf" in ids:
-		var at := Vector3(-1.6, 0, WALL_Z + 0.3)
+		var at := Vector3(-2.1, 0, WALL_Z + 0.3)  # left of the chair (x -2.5..-1.7), not through it
 		Props.model(world, "furniture/bookcaseOpen", at)
 		for h in [0.05, 0.62, 1.2]:  # books on the shelves
 			Props.model(world, "furniture/books", at + Vector3(-0.1, h, 0.02))
@@ -230,6 +244,138 @@ static func decor(world: Node3D, ids: Array) -> void:
 
 
 ## Cardboard box with packing tape; `label` is printed on its front (+Z) face.
+# ---------- atmosphere and props ----------
+
+## Unshaded see-through colour for light and shade overlays (no outline, casts no shadow).
+static func overlay(world: Node3D, size: Vector3, pos: Vector3, c: Color, add := false) -> MeshInstance3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if add else BaseMaterial3D.BLEND_MODE_MIX
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.albedo_color = c
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = pos
+	world.add_child(mi)
+	return mi
+
+
+## 8 AM sun through the window: three soft slanted shafts and a warm patch where they land.
+static func sunlight(world: Node3D) -> void:
+	var sun := Color(1.0, 0.82, 0.5, 0.07)
+	for i in 3:
+		var shaft := overlay(world, Vector3(0.32, 2.1, 0.02), Vector3(0.45 + i * 0.45, 0.85, -1.95), sun, true)
+		shaft.rotation_degrees.x = -40.0  # from the glass down towards the counter
+	overlay(world, Vector3(1.5, 0.002, 0.9), Vector3(0.9, 0.003, -2.05), Color(1.0, 0.85, 0.55, 0.13), true)  # in view between the wall and the counter
+
+
+## Soft contact shade where the wall and the counter meet the floor (two layers: darker at the seam).
+static func contact_shadows(world: Node3D) -> void:
+	var shade := Color(0.24, 0.14, 0.06, 0.16)
+	for depth in [0.22, 0.09]:
+		overlay(world, Vector3(12, 0.002, depth), Vector3(0, 0.002, WALL_Z + 0.03 + depth / 2.0), shade)  # wall base
+		overlay(world, Vector3(COUNTER_X.y - COUNTER_X.x, 0.002, depth), Vector3((COUNTER_X.x + COUNTER_X.y) / 2.0, 0.002,
+			COUNTER_Z.x - depth / 2.0), shade)  # customer side of the counter
+		overlay(world, Vector3(COUNTER_X.y - COUNTER_X.x, 0.002, depth), Vector3((COUNTER_X.x + COUNTER_X.y) / 2.0, 0.002,
+			0.08 + depth / 2.0), shade)  # barista side
+
+
+## Ribbed charcoal anti-fatigue mat on the barista side, under the machine and the mentor.
+static func staff_mat(world: Node3D) -> void:
+	var at := Vector3(0.25, 0.004, 0.52)
+	IsoKit.box(world, Vector3(2.2, 0.008, 0.5), at, Color("#2E2A2C"))
+	for k in 9:  # ribs
+		IsoKit.box(world, Vector3(2.1, 0.004, 0.012), at + Vector3(0, 0.005, -0.2 + k * 0.05), Color("#3E393C"), false, false, false)
+
+
+## Small succulent in a terracotta pot, centred on a table top at `top` (the surface).
+static func succulent(world: Node3D, top: Vector3) -> void:
+	IsoKit.cyl(world, 0.05, 0.07, top + Vector3(0, 0.035, 0), Color("#C0643A"), false, false, 0.06)
+	IsoKit.cyl(world, 0.063, 0.015, top + Vector3(0, 0.072, 0), Color("#D27A4A"))  # rim
+	for k in 6:  # rosette of fleshy leaves
+		var a := k * TAU / 6.0
+		var leaf := IsoKit.box(world, Vector3(0.035, 0.025, 0.07), top + Vector3(sin(a) * 0.035, 0.095, cos(a) * 0.035), Color("#5FA04A"))
+		leaf.rotation = Vector3(-0.5, a, 0)
+	IsoKit.sphere(world, 0.028, top + Vector3(0, 0.11, 0), Color("#7CC05A"))
+
+
+## Burlap coffee sack, tied at the neck, open with beans showing.
+static func sack(world: Node3D, at: Vector3) -> void:
+	var burlap := Color("#B48C5C")
+	IsoKit.cyl(world, 0.24, 0.34, at + Vector3(0, 0.17, 0), burlap, false, false, 0.2)
+	IsoKit.cyl(world, 0.205, 0.04, at + Vector3(0, 0.15, 0), Color("#9C7646"))  # woven band
+	IsoKit.cyl(world, 0.11, 0.07, at + Vector3(0, 0.37, 0), burlap)  # neck
+	IsoKit.cyl(world, 0.12, 0.025, at + Vector3(0, 0.37, 0), Color("#6A4A2A"))  # rope tie
+	IsoKit.cyl(world, 0.17, 0.05, at + Vector3(0, 0.425, 0), burlap, false, false, 0.19)  # folded-out mouth
+	IsoKit.cyl(world, 0.15, 0.012, at + Vector3(0, 0.452, 0), Color("#4A2614"))  # beans
+	for k in 7:
+		var a := k * TAU / 7.0
+		IsoKit.sphere(world, 0.022, at + Vector3(sin(a) * 0.08, 0.465, cos(a) * 0.08), Color("#5A3018"))
+	var l := Label3D.new()
+	l.text = "KOPI"
+	l.font_size = 36
+	l.pixel_size = 0.004
+	l.modulate = Color("#4A2E16")
+	l.position = at + Vector3(-0.17, 0.2, 0.17)
+	l.rotation_degrees.y = -45.0  # on the side facing the camera
+	world.add_child(l)
+
+
+## Chalkboard menu: wood frame, slate board, chalk lines with prices and a cup sketch.
+static func chalkboard(world: Node3D, at: Vector3) -> void:
+	IsoKit.box(world, Vector3(0.78, 0.6, 0.04), at + Vector3(0, 0, 0.02), WOOD)
+	IsoKit.box(world, Vector3(0.68, 0.5, 0.01), at + Vector3(0, 0, 0.045), Color("#2E3430"), false, false, false)
+	var chalk := Color("#D8DCD4")
+	for i in 5:  # menu lines: an item and its price
+		var y := 0.17 - i * 0.075
+		IsoKit.box(world, Vector3(0.24 - (i % 2) * 0.06, 0.018, 0.004), at + Vector3(-0.17, y, 0.052), chalk, false, false, false)
+		IsoKit.box(world, Vector3(0.05, 0.018, 0.004), at + Vector3(0.01, y, 0.052), chalk.darkened(0.2), false, false, false)
+	var cup := at + Vector3(0.19, -0.06, 0.052)  # cup sketch: body, handle, saucer, steam
+	IsoKit.box(world, Vector3(0.12, 0.012, 0.004), cup + Vector3(0, -0.06, 0), chalk, false, false, false)
+	IsoKit.box(world, Vector3(0.012, 0.09, 0.004), cup + Vector3(-0.05, 0, 0), chalk, false, false, false)
+	IsoKit.box(world, Vector3(0.012, 0.09, 0.004), cup + Vector3(0.05, 0, 0), chalk, false, false, false)
+	IsoKit.box(world, Vector3(0.1, 0.012, 0.004), cup + Vector3(0, 0.045, 0), chalk, false, false, false)
+	IsoKit.box(world, Vector3(0.03, 0.04, 0.004), cup + Vector3(0.07, 0.005, 0), chalk, false, false, false)
+	IsoKit.box(world, Vector3(0.16, 0.012, 0.004), cup + Vector3(0, -0.075, 0), chalk, false, false, false)
+	for s in 2:
+		IsoKit.box(world, Vector3(0.012, 0.06, 0.004), cup + Vector3(-0.02 + s * 0.04, 0.1, 0), chalk.darkened(0.15), false, false, false)
+
+
+## Cake display: a wooden board with two cakes on small plates under one glass hemisphere
+## (radius DOME_R, inside the counter top with a 10 cm margin). The cakes are opaque, so they
+## draw in the opaque pass; the dome is the only see-through part and draws after them, so it
+## always lies over everything inside it.
+static func pastry_dome(world: Node3D, at: Vector3) -> void:
+	const DOME_R := 0.27
+	var base := at + Vector3(0, 0.012, 0)  # top of the board
+	IsoKit.cyl(world, DOME_R + 0.03, 0.012, at + Vector3(0, 0.006, 0), Color("#8A5634"))
+	for dx in [-0.11, 0.11]:
+		var c := base + Vector3(dx, 0, 0)
+		IsoKit.cyl(world, 0.1, 0.012, c + Vector3(0, 0.006, 0), Color("#C9A27C"))  # plate
+		IsoKit.cyl(world, 0.065, 0.07, c + Vector3(0, 0.047, 0), Color("#E8A0B4"))  # cake
+		IsoKit.sphere(world, 0.02, c + Vector3(0.015, 0.09, 0), Color("#C8323C"))  # cherry
+	var glass := IsoKit.mat(Props.GLASS, false, true).duplicate() as StandardMaterial3D
+	glass.albedo_color.a = 0.28  # a light glossy tint: the cakes read clearly through it
+	glass.roughness = 0.05
+	glass.rim_enabled = true  # brighter silhouette (Fresnel): the dome reads as glass, clear in the middle
+	glass.rim = 1.0
+	glass.rim_tint = 0.2
+	var dome := SphereMesh.new()
+	dome.radius = DOME_R
+	dome.height = DOME_R
+	dome.is_hemisphere = true
+	dome.radial_segments = 20
+	dome.rings = 6
+	IsoKit._add(world, dome, base, glass)
+	IsoKit.cyl(world, DOME_R + 0.005, 0.01, base + Vector3(0, 0.005, 0), Color("#D8E4E8"))  # glass foot ring
+	IsoKit.sphere(world, 0.025, base + Vector3(0, DOME_R + 0.015, 0), Color("#5A3A26"))  # knob
+
+
 static func box(world: Node3D, size: Vector3, at: Vector3, label: String) -> Node3D:
 	var b := Props.node(world, at)
 	IsoKit.box(b, size, Vector3(0, size.y / 2.0, 0), BOX)
