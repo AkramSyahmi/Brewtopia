@@ -102,7 +102,8 @@ var objective_toggle: TextureButton  # collapse / expand the instruction
 var objective_collapsed := false
 var feedback_on := false
 var feedback_id := 0  # latest feedback message (older fade timers leave it alone)
-var modal_dim: ColorRect  # dark backdrop behind the recipe book / shop; blocks the game
+var modal_dim: ColorRect  # dark backdrop behind the recipe book / shop / menu; blocks the game
+var settings: PanelContainer  # the Menu window (music volume, mute, sound, main menu); pauses the game
 var bubble_style: StyleBoxTexture
 
 
@@ -134,7 +135,7 @@ func _ready() -> void:
 		if talk_pointer.visible:
 			rects.append(talk_pointer.get_global_rect())
 		return rects
-	Sfx.music(true)
+	Sfx.music("cafe")
 	start_order(0)
 
 
@@ -852,7 +853,7 @@ func build_ui() -> void:
 		objective_panel.reset_size.call_deferred())
 	hud.add_child(hint_button)
 	var menu_button := hud_button("Menu", "icon_menu")
-	menu_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/title_screen.tscn"))  # the save keeps the day; that day restarts from its first order
+	menu_button.pressed.connect(open_settings)  # music volume and mute, sound, resume or main menu
 	hud.add_child(menu_button)
 	hud.minimum_size_changed.connect(fit_hud.bind(hud))
 	hud.resized.connect(fit_hud.bind(hud))
@@ -1019,14 +1020,17 @@ func build_ui() -> void:
 	modal_dim.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed:
 			book.hide()
-			shop.hide())
+			shop.hide()
+			close_settings())
+	modal_dim.process_mode = Node.PROCESS_MODE_ALWAYS  # still clickable while the Menu pauses the game
 	modal_layer.add_child(modal_dim)
 	book = RecipeBook.new()
 	modal_layer.add_child(book)
 	shop = UpgradeShop.new()
 	modal_layer.add_child(shop)
-	for w: Control in [book, shop]:
-		w.visibility_changed.connect(func(): modal_dim.visible = book.visible or shop.visible)
+	build_settings(modal_layer)
+	for w: Control in [book, shop, settings]:
+		w.visibility_changed.connect(func(): modal_dim.visible = book.visible or shop.visible or settings.visible)
 	shop.bought.connect(func():
 		apply_upgrades()
 		bar.set_decor(save.decor)
@@ -1079,6 +1083,103 @@ func build_objective_panel(parent: Control) -> void:
 
 ## A CanvasLayer drawn above the game at `layer`, holding a full-screen root Control that
 ## passes clicks through and carries this screen's theme (themes don't cross CanvasLayers).
+## The Menu window: music volume (0-100 %, the Music bus via linear_to_db), Mute music
+## (keeps the volume), Sound effects, Resume and Main menu. Open, it pauses the game (the
+## music keeps playing: the Audio autoload always runs).
+func build_settings(parent: Control) -> void:
+	settings = PanelContainer.new()
+	settings.add_theme_stylebox_override("panel", PixelUI.cream_panel(30.0))
+	settings.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	settings.process_mode = Node.PROCESS_MODE_ALWAYS
+	settings.hide()
+	parent.add_child(settings)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 18)
+	settings.add_child(col)
+	var head := label(col, 34, Color("#8A4A26"))
+	head.add_theme_font_override("font", PixelUI.font(700))
+	head.text = "Menu"
+	var row := hrow(16)
+	col.add_child(row)
+	label(row, 22, Color("#36251D")).text = "Music volume"
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.custom_minimum_size = Vector2(300, 32)
+	slider.size_flags_vertical = SIZE_SHRINK_CENTER
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color("#C9A27C")
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	var filled := track.duplicate() as StyleBoxFlat
+	filled.bg_color = Color("#8A4A26")
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", filled)
+	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
+	row.add_child(slider)
+	var pct := PixelUI.number_label(label(row, 24, Color("#36251D")), 24)
+	pct.custom_minimum_size.x = 80
+	var mute := Button.new()
+	mute.toggle_mode = true
+	mute.custom_minimum_size = Vector2(0, 56)
+	col.add_child(mute)
+	var sound := Button.new()
+	sound.toggle_mode = true
+	sound.custom_minimum_size = Vector2(0, 56)
+	col.add_child(sound)
+	var audio := Sfx.audio()
+	var refresh := func():
+		pct.text = "%d%%" % roundi(slider.value * 100.0)
+		mute.text = "Music: muted" if mute.button_pressed else "Music: on"
+		sound.text = "Sound effects: off" if not sound.button_pressed else "Sound effects: on"
+	settings.visibility_changed.connect(func():  # show the saved settings each time it opens
+		if settings.visible and audio:
+			slider.set_value_no_signal(audio.music_volume)
+			mute.set_pressed_no_signal(not audio.music_on)
+			sound.set_pressed_no_signal(audio.sfx_on)
+			refresh.call())
+	slider.value_changed.connect(func(v: float):
+		if audio:
+			audio.set_music_volume(v)  # live, while dragging
+		refresh.call())
+	mute.toggled.connect(func(on: bool):
+		if audio:
+			audio.set_music_on(not on)
+		refresh.call())
+	sound.toggled.connect(func(on: bool):
+		if audio:
+			audio.set_sfx_on(on)
+		refresh.call())
+	var buttons := hrow(16)
+	col.add_child(buttons)
+	var resume := Button.new()
+	resume.text = "Resume"
+	resume.custom_minimum_size = Vector2(240, 60)
+	resume.pressed.connect(close_settings)
+	buttons.add_child(resume)
+	var main_menu := Button.new()
+	main_menu.text = "Main menu"
+	main_menu.custom_minimum_size = Vector2(240, 60)
+	main_menu.pressed.connect(func():  # the save keeps the day; that day restarts from its first order
+		get_tree().paused = false
+		get_tree().change_scene_to_file("res://scenes/ui/title_screen.tscn"))
+	buttons.add_child(main_menu)
+
+
+func open_settings() -> void:
+	settings.show()
+	settings.reset_size()
+	settings.position = (Vector2(1280, 720) - settings.size) / 2.0
+	get_tree().paused = true
+
+
+func close_settings() -> void:
+	if settings.visible:
+		settings.hide()
+		get_tree().paused = false
+
+
 func ui_layer(layer: int) -> Control:
 	var cl := CanvasLayer.new()
 	cl.layer = layer

@@ -22,7 +22,7 @@ static func loop(sound_name: String, on: bool, volume_db := -4.0) -> void:
 		a.loop(sound_name, on, volume_db)
 
 
-static func music(on: bool) -> void:
+static func music(track_name: String) -> void:
 	var a := audio()
 	if a:
-		a.music(on)
+		a.music(track_name)

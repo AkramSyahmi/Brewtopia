@@ -141,7 +141,7 @@ func _ready() -> void:
 		start_game())
 	add_child(confirm)
 	build_credits()
-	Sfx.music(true)
+	Sfx.music("title")
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.6)
 

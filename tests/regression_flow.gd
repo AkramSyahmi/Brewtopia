@@ -92,7 +92,10 @@ func run() -> void:
 	shift.bar.show_order(shift.recipe)
 	shift.advance()
 	shift.start_order(3)
-	await create_timer(4.5).timeout  # the customer walks up (about 3.5 s from the line) and orders
+	var walk_t0 := Time.get_ticks_msec()  # wait for the customer to walk up and start ordering
+	while not (shift.step == shift.Step.DIALOGUE and shift.talk_box.visible) and Time.get_ticks_msec() - walk_t0 < 15000:
+		await process_frame
+	await create_timer(0.3).timeout
 	shift.show_step(shift.Step.BAR)
 	st = shift.station
 	await create_timer(0.6).timeout
