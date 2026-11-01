@@ -10,9 +10,10 @@ config_version=5
 
 [application]
 
-config/name="UXHMAC 2026"
+config/name="BREWTOPIA"
 run/main_scene="res://scenes/ui/title_screen.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
+config/icon="res://assets/icon/icon.png"
 
 [autoload]
 

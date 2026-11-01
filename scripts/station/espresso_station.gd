@@ -56,6 +56,9 @@ const PITCHER_HOME := Vector2(496, 200)  # beside the steam wand, on its drip ma
 const TOPPINGS_AT := Vector2(1122, 346)  # screen px: the Toppings button's TOP-RIGHT corner (it ends just left of the fridge), above the pitcher
 const STEAM_ZONE := Rect2(430, 170, 80, 90)  # under the steam wand
 const SERVE_RECT := Rect2(482, 292, 80, 48)  # clear counter right of the machine, under the pitcher
+const KNOBS := [Vector2(67.5, 110.5), Vector2(212.5, 110.5)]  # brew button centres in machine.png (23 px round knobs)
+const KNOB_ART := 23  # knob size in machine.png px; its tap zone is KNOB_TAP (bigger, for fingers)
+const KNOB_TAP := 34.0
 const GROUP_DX := 117.0  # the right group head is this far right of the left one
 # Where the portafilter locks in, measured from the art (re-measure if machine.png or the
 # portafilter sprites are replaced): group head centres and their bottom row in machine.png,
@@ -150,6 +153,7 @@ class Group:
 	var marker: ColorRect
 	var green: ColorRect
 	var bubble: Label
+	var knob_lit: Sprite2D  # the brew button glowing green while this group pulls a shot
 
 
 class Cup:
@@ -169,8 +173,15 @@ class Cup:
 
 
 var recipe: Dictionary
-var dispense_g_per_s := 4.0
-var sim_speed := 2.0
+var dispense_g_per_s := 2.5  # grinder near the dose (the last GRIND_SLOW_FROM_G): slow, so letting go on time is fair
+var grind_fast_g_per_s := 8.0  # grinder before that: the run-up goes quickly
+var sim_speed := 2.0  # shot: simulated seconds per real second near the target and through the green zone
+## Fast, then slow near the target, like a grinder's slow fill: the waiting part goes quickly and
+## the part where the player reacts keeps today's pace. Only real time changes: the simulated
+## shot clock, grams and every scored value are the same.
+const GRIND_SLOW_FROM_G := 3.0  # grams short of the recipe dose where the grinder slows down
+const SHOT_SLOW_FROM_G := 8.0  # grams short of the target yield where the shot slows to sim_speed
+const SHOT_RUNUP_S := 4.0  # real seconds the run-up takes (any grind: a very fine one no longer means a long wait)
 var green_zone_g := 2.0  # +/- grams of the green zone (Shot Timer upgrade widens it)
 var steam_rate := 12.0  # degrees C per second while steaming (Steam Control slows it)
 
@@ -219,11 +230,11 @@ var steam_panel: PanelContainer
 var art_panel: LatteArtPanel
 var world_font := PixelUI.font()  # labels inside the scaled world (see pixel_text)
 var art_cup: Cup  # the cup getting latte art
-var thermo_fill: ColorRect
-var thermo_green: ColorRect
+var temp_meter: Meter  # steam popup: the thermometer
+var froth_meter: Meter  # steam popup: the froth gauge
 var temp_label: Label
-var froth_green: ColorRect
-var froth_marker: ColorRect
+var steam_legend: Label  # "Froth 45-60%  Temp 60-65°C" ("full" assist only, see open_steam)
+var steam_puffs: Array[Control] = []  # little steam clouds off the wand while steaming
 var steam_pitcher: Control  # the pitcher inside the popup; moves up and down
 var steam_milk: PitcherMilk  # the milk in the popup pitcher
 var pitcher_milk: PitcherMilk  # the milk in the counter pitcher
@@ -334,6 +345,7 @@ func build_zones() -> void:
 	for i in 2:
 		add_zone("tray%d" % i, Rect2(cup_stand(i) + Vector2(-36, -64), Vector2(72, 70)), cup_stand(i))  # snap = cup anchor
 		add_zone("brew%d" % i, Rect2(MACHINE_AT + Vector2(60 + GROUP_DX * i, 150), Vector2(80, 60)))
+		add_zone("knob%d" % i, Rect2(MACHINE_AT + KNOBS[i] - Vector2.ONE * KNOB_TAP / 2.0, Vector2.ONE * KNOB_TAP))  # brew button
 	add_zone("knock", Rect2(KNOCK_AT, Vector2(56, 44)).grow(10))
 	add_zone("rack", Rect2(RACK_AT, Vector2(200, 70)))
 	add_zone("iced_stack", Rect2(ICED_STACK_AT, Vector2(34, 70)))
@@ -530,6 +542,8 @@ func update_hover(screen_pos: Vector2) -> void:
 	elif dragging == null and page == 0:
 		if hit(pitcher, p):
 			text = pitcher_words()
+		elif "knob0" in zones_at(p) or "knob1" in zones_at(p):
+			text = "Brew button: tap to start or stop the shot"
 		elif over_milk:
 			text = "COLD MILK: drag the pitcher here to fill it"
 	var style := milk_hover.get_theme_stylebox("panel") as StyleBoxFlat
@@ -596,7 +610,32 @@ func build_group(i: int) -> void:
 	g.marker = rect(Color("#FFFFFF"), Vector2(0, -2), Vector2(2, SHOT_BAR.size.y + 4), g.bar)
 	g.bar.hide()
 	g.bubble = PixelUI.number_label(bubble(), 24)
+	g.knob_lit = Sprite2D.new()
+	g.knob_lit.texture = lit_knob(i)
+	g.knob_lit.centered = false
+	g.knob_lit.position = MACHINE_AT + (KNOBS[i] - Vector2.ONE * KNOB_ART / 2.0).floor()
+	g.knob_lit.z_index = 1  # over the machine sprite
+	g.knob_lit.hide()
+	world.add_child(g.knob_lit)
 	groups.append(g)
+
+
+## The brew button lit up: knob i cut from machine.png with its greys swapped for greens
+## (shading kept, outline and centre dot stay dark, the panel around it transparent). Made
+## at runtime from the existing sprite, so no art file changes.
+func lit_knob(i: int) -> ImageTexture:
+	var at := Vector2i((KNOBS[i] - Vector2.ONE * KNOB_ART / 2.0).floor())
+	var img := tex("machine").get_image().get_region(Rect2i(at, Vector2i(KNOB_ART, KNOB_ART)))
+	img.convert(Image.FORMAT_RGBA8)
+	var greens := {Color8(102, 101, 107): Color("#CFF0A8"), Color8(52, 50, 58): Color("#7CC95A"), Color8(42, 41, 47): Color("#4E9A3A")}
+	for y in KNOB_ART:
+		for x in KNOB_ART:
+			var c := img.get_pixel(x, y)
+			if greens.has(c):
+				img.set_pixel(x, y, greens[c])
+			elif c != Color8(26, 24, 28):
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 func small_button(text: String, size_px: Vector2) -> Button:
@@ -632,52 +671,84 @@ func build_grind_buttons() -> void:
 		b.add_theme_color_override("font_color", Color("#F3E6CC"))
 
 
-## GCGC-style steaming popup: a froth meter along the top, a thermometer, and the pitcher
-## under the wand. Hold on the pitcher to steam; drag it down (wand tip at the surface)
-## to add air, up (wand deep) to only heat. Let go and press Done with both in the green.
+## Steaming popup (layout in body px; the body sits inside the cream sign's padding):
+## Froth gauge | pitcher under the wand | thermometer + readout | "How to Steam" steps + Done,
+## a "Steam Milk" banner across the top edge and the target legend along the bottom.
+## Hold on the pitcher to steam; drag it down (wand tip at the surface) to add air, up (wand
+## deep) to only heat. Let go and press Done (or the X) with both in the green.
+## Same footprint as before (x 690 to the right edge): the left group head and its shot readout stay in view.
 func build_steam_panel(layer: CanvasLayer) -> void:
 	steam_panel = PanelContainer.new()
 	steam_panel.add_theme_stylebox_override("panel", PixelUI.cream_panel())  # pixel cream sign, gold rim
-	steam_panel.position = Vector2(690, 70)
-	steam_panel.custom_minimum_size = Vector2(560, 480)
+	steam_panel.position = Vector2(690, 96)
 	layer.add_child(steam_panel)
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 12)
-	steam_panel.add_child(rows)
-	var froth_row := HBoxContainer.new()
-	froth_row.add_theme_constant_override("separation", 12)
-	rows.add_child(froth_row)
-	var froth_label := Label.new()
-	froth_label.text = "Froth"
-	froth_label.add_theme_font_size_override("font_size", 20)
-	froth_label.add_theme_color_override("font_color", Color("#36251D"))
-	froth_row.add_child(froth_label)
-	var froth := Control.new()
-	froth.custom_minimum_size = Vector2(440, 24)
-	froth_row.add_child(froth)
-	rect(Color("#65422F"), Vector2(0, 0), Vector2(440, 24), froth)
-	rect(Color("#FFFFFF"), Vector2(3, 3), Vector2(434, 18), froth)
-	froth_green = rect(Color("#6BD46B"), Vector2(3, 3), Vector2(40, 18), froth)
-	froth_marker = rect(Color("#36251D"), Vector2(3, -4), Vector2(4, 32), froth)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 20)
-	rows.add_child(row)
-	var thermo := Control.new()
-	thermo.custom_minimum_size = Vector2(70, 380)
-	row.add_child(thermo)
-	rect(Color("#65422F"), Vector2(20, 0), Vector2(34, 330), thermo)
-	rect(Color("#FFFFFF"), Vector2(24, 4), Vector2(26, 322), thermo)
-	thermo_green = rect(Color("#6BD46B"), Vector2(24, 0), Vector2(26, 10), thermo)
-	thermo_fill = rect(Color("#D9534F"), Vector2(30, 300), Vector2(14, 20), thermo)
-	rect(Color("#D9534F"), Vector2(14, 326), Vector2(46, 46), thermo)  # bulb
-	# the pitcher under the steam wand; press and drag here
+	var body := Control.new()
+	body.custom_minimum_size = Vector2(522, 526)
+	steam_panel.add_child(body)
+	var ink := Color("#36251D")
+	var brown := Color("#5A3414")
+	# banner across the top edge, and the red X in the corner (same as Done)
+	var banner := PanelContainer.new()
+	banner.add_theme_stylebox_override("panel", PixelUI.frame(PixelUI.MENU % "banner", Vector4i(18, 18, 15, 18), Vector4(24, 8, 28, 12)))
+	banner.mouse_filter = MOUSE_FILTER_IGNORE
+	body.add_child(banner)
+	var banner_row := HBoxContainer.new()
+	banner_row.add_theme_constant_override("separation", 12)
+	banner.add_child(banner_row)
+	var cup_icon := TextureRect.new()
+	cup_icon.texture = load(PixelUI.HUD % "icon_cup_small")
+	cup_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	cup_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	banner_row.add_child(cup_icon)
+	var title := Label.new()
+	title.text = "Steam Milk"
+	title.add_theme_font_override("font", PixelUI.font(700))
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", ink)
+	banner_row.add_child(title)
+	banner.resized.connect(func(): banner.position = Vector2((body.custom_minimum_size.x - banner.size.x) / 2.0, -54))
+	var close := TextureButton.new()
+	close.texture_normal = load(PixelUI.HUD % "close_normal")
+	close.texture_hover = load(PixelUI.HUD % "close_hover")
+	close.texture_pressed = load(PixelUI.HUD % "close_pressed")
+	close.position = Vector2(body.custom_minimum_size.x - 30, -12)
+	close.tooltip_text = "Done steaming"
+	close.pressed.connect(close_steam)
+	body.add_child(close)
+	# the two gauges, each under a cream name tag
+	froth_meter = Meter.new()
+	froth_meter.colors(Color("#D9A066"), Color("#F2C894"), Color("#A8693A"))
+	froth_meter.position = Vector2(8, 78)
+	body.add_child(froth_meter)
+	steam_tag(body, "Froth", Vector2(-4, 24), 84.0)
+	temp_meter = Meter.new()
+	temp_meter.bulb = true
+	temp_meter.colors(Color("#D9534F"), Color("#F08A7E"), Color("#A8322E"))
+	temp_meter.position = Vector2(262, 78)
+	body.add_child(temp_meter)
+	steam_tag(body, "Temp", Vector2(250, 24), 84.0)
+	var readout := PanelContainer.new()
+	readout.add_theme_stylebox_override("panel", PixelUI.frame(PixelUI.MENU % "button_cream_normal", Vector4i(15, 15, 15, 18), Vector4(8, 4, 8, 8)))
+	readout.custom_minimum_size = Vector2(88, 0)
+	readout.position = Vector2(248, 426)
+	readout.mouse_filter = MOUSE_FILTER_IGNORE
+	body.add_child(readout)
+	temp_label = Label.new()
+	PixelUI.number_label(temp_label, 24)
+	temp_label.add_theme_color_override("font_color", ink)
+	temp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	readout.add_child(temp_label)
+	# the pitcher under the steam wand; press and drag here (size and drag maths as before)
 	var area := Control.new()
-	area.custom_minimum_size = Vector2(170, 380)
+	area.size = Vector2(170, 380)
+	area.position = Vector2(80, 66)
 	area.mouse_filter = MOUSE_FILTER_STOP
 	area.clip_contents = true
 	area.gui_input.connect(on_steam_input)
-	row.add_child(area)
+	body.add_child(area)
+	rect(Color("#3A2416"), Vector2(75, 0), Vector2(16, 6), area)  # wand joint
 	rect(Color("#9EA3AA"), Vector2(78, 0), Vector2(10, 230), area)  # steam wand
+	rect(Color("#C9CDD3"), Vector2(78, 0), Vector2(3, 230), area)  # its shine
 	rect(Color("#6E737C"), Vector2(76, 222), Vector2(14, 8), area)  # wand tip
 	steam_pitcher = Control.new()
 	steam_pitcher.mouse_filter = MOUSE_FILTER_IGNORE
@@ -695,27 +766,94 @@ func build_steam_panel(layer: CanvasLayer) -> void:
 	steam_milk.scale = Vector2.ONE * fit
 	steam_milk.position = (art.size - Vector2(60, 64) * fit) / 2.0
 	steam_pitcher.add_child(steam_milk)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 16)
-	row.add_child(col)
-	var title := Label.new()
-	title.text = "Steam the milk"
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color("#36251D"))
-	col.add_child(title)
-	temp_label = Label.new()
-	PixelUI.number_label(temp_label, 40)
-	temp_label.add_theme_color_override("font_color", Color("#36251D"))
-	col.add_child(temp_label)
-	var help := Label.new()
-	help.text = "Hold on the pitcher to steam.\nDrag it DOWN to add air,\nUP to just heat.\nGet both bars into\nthe green, then Done."
-	help.add_theme_font_size_override("font_size", 16)
-	help.add_theme_color_override("font_color", Color("#65422F"))
-	col.add_child(help)
-	var done := small_button("Done", Vector2(180, 60))
+	for i in 3:  # pixel steam clouds; update_steam_ui drifts them up from the rim while steaming
+		var puff := Control.new()
+		puff.mouse_filter = MOUSE_FILTER_IGNORE
+		for part: Rect2 in [Rect2(3, 0, 12, 3), Rect2(0, 3, 18, 9), Rect2(3, 12, 12, 3), Rect2(12, -3, 9, 9)]:
+			rect(Color("#B9AFA2"), part.position - Vector2(3, 3), part.size + Vector2(6, 6), puff)  # outline
+		for part: Rect2 in [Rect2(3, 0, 12, 3), Rect2(0, 3, 18, 9), Rect2(3, 12, 12, 3), Rect2(12, -3, 9, 9)]:
+			rect(Color("#FFFFFF"), part.position, part.size, puff)
+		puff.hide()
+		area.add_child(puff)
+		steam_puffs.append(puff)
+	# divider, then the numbered steps and Done
+	for y in range(30, 470, 12):
+		rect(Color("#D9C7A8"), Vector2(340, y), Vector2(3, 6), body)
+	steam_tag(body, "How to Steam", Vector2(352, 24), 0.0)
+	var steps := VBoxContainer.new()
+	steps.add_theme_constant_override("separation", 14)
+	steps.position = Vector2(352, 84)
+	steps.mouse_filter = MOUSE_FILTER_IGNORE
+	body.add_child(steps)
+	var lines := ["Hold the pitcher to steam.", "Drag DOWN: more froth.",
+		"Drag UP: just heat.", "Both bars in the green, then Done."]
+	for i in lines.size():
+		var step_row := HBoxContainer.new()
+		step_row.add_theme_constant_override("separation", 10)
+		step_row.mouse_filter = MOUSE_FILTER_IGNORE
+		steps.add_child(step_row)
+		var n := Label.new()
+		PixelUI.number_label(n, 16)
+		n.text = str(i + 1)
+		n.add_theme_color_override("font_color", Color("#F3E6CC"))
+		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var badge := PanelContainer.new()
+		badge.add_theme_stylebox_override("panel", PixelUI.wood_pill(10.0))
+		badge.size_flags_vertical = SIZE_SHRINK_BEGIN
+		badge.custom_minimum_size = Vector2(36, 0)
+		badge.add_child(n)
+		step_row.add_child(badge)
+		var l := Label.new()
+		l.text = lines[i]
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(126, 0)
+		l.add_theme_font_size_override("font_size", 16)
+		l.add_theme_color_override("font_color", brown)
+		step_row.add_child(l)
+	var done := small_button("Done", Vector2(170, 60))
+	done.position = Vector2(352, 418)
 	done.pressed.connect(close_steam)
-	col.add_child(done)
+	body.add_child(done)
+	# legend: what the green means; the exact targets only on "full" assist orders (open_steam)
+	var legend := HBoxContainer.new()
+	legend.add_theme_constant_override("separation", 8)
+	legend.position = Vector2(0, 474)
+	legend.mouse_filter = MOUSE_FILTER_IGNORE
+	body.add_child(legend)
+	var swatch := Control.new()
+	swatch.custom_minimum_size = Vector2(21, 21)
+	swatch.size_flags_vertical = SIZE_SHRINK_CENTER
+	rect(Color("#4E9A3A"), Vector2.ZERO, Vector2(21, 21), swatch)
+	rect(Color("#B5E78F"), Vector2(3, 3), Vector2(15, 15), swatch)
+	legend.add_child(swatch)
+	var zones := Label.new()
+	zones.text = "Target zones"
+	zones.add_theme_font_size_override("font_size", 16)
+	zones.add_theme_color_override("font_color", brown)
+	legend.add_child(zones)
+	steam_legend = Label.new()  # second line, under the swatch
+	PixelUI.number_label(steam_legend, 16)
+	steam_legend.add_theme_color_override("font_color", brown)
+	steam_legend.position = Vector2(0, 500)
+	body.add_child(steam_legend)
 	steam_panel.hide()
+
+
+## A small cream name tag (the popup's section labels). width 0 = fit the text.
+func steam_tag(parent: Control, text: String, at: Vector2, width: float) -> void:
+	var tag := PanelContainer.new()
+	tag.add_theme_stylebox_override("panel", PixelUI.frame(PixelUI.MENU % "button_cream_normal", Vector4i(15, 15, 15, 18), Vector4(15, 4, 15, 8)))
+	tag.custom_minimum_size = Vector2(width, 0)
+	tag.position = at
+	tag.mouse_filter = MOUSE_FILTER_IGNORE
+	parent.add_child(tag)
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", PixelUI.font(700))
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", Color("#5A3414"))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_child(l)
 
 
 func build_nav() -> void:
@@ -916,7 +1054,8 @@ func _process(delta: float) -> void:
 		elif at_fork.state == PfState.USED:
 			once("There are used grounds in the basket. Knock them out first.")
 		else:
-			at_fork.dose_g += dispense_g_per_s * delta
+			var near: bool = at_fork.dose_g >= float(recipe.get("dose_g", 18.0)) - GRIND_SLOW_FROM_G
+			at_fork.dose_g += (dispense_g_per_s if near else grind_fast_g_per_s) * delta
 			at_fork.grind = grind
 			at_fork.state = PfState.DOSED  # fresh grounds on top undo any tamping
 			update_pf(at_fork)
@@ -930,7 +1069,7 @@ func _process(delta: float) -> void:
 	for g in groups:
 		var c := cup_at("tray%d" % g.index)
 		if g.state == ShotState.EXTRACTING:
-			var step := delta * sim_speed
+			var step := delta * shot_speed(g, c)
 			g.sim_time += step
 			set_stream(g, c)
 			if c:
@@ -938,6 +1077,8 @@ func _process(delta: float) -> void:
 				update_cup_visual(c)
 			if g.sim_time * g.flow >= MAX_YIELD_G:
 				toggle_brew(g.index)
+		g.knob_lit.visible = g.state == ShotState.EXTRACTING
+		g.knob_lit.modulate.a = 0.8 + 0.2 * sin(hover_t * 6.0)
 		var bar_on: bool = page == 0 and not recipe.is_empty() and c != null and (g.state == ShotState.EXTRACTING or c.yield_g > 0.0)
 		g.bar.visible = bar_on
 		if bar_on:
@@ -955,6 +1096,18 @@ func _process(delta: float) -> void:
 		milk_foam = minf(milk_foam + AERATE_PER_S * (1.0 - pitcher_depth) * delta, 1.0)
 	if steam_state != SteamState.CLOSED:
 		update_steam_ui()
+
+
+## Simulated seconds per real second for a running shot: the run-up (until SHOT_SLOW_FROM_G short
+## of the target) is paced to last SHOT_RUNUP_S real seconds, never slower than sim_speed; from there
+## through the "good" zone (target + 2.5 × green zone) it runs at sim_speed, as before; past that
+## (the stop was missed) it runs fast again to the end.
+func shot_speed(g: Group, c: Cup) -> float:
+	var target := float(recipe.get("target_yield_g", 36.0))
+	var slow_from := maxf(target - SHOT_SLOW_FROM_G, 0.0)
+	var fast := maxf(sim_speed, slow_from / maxf(g.flow, 0.01) / SHOT_RUNUP_S)
+	var poured := c.yield_g if c else g.sim_time * g.flow
+	return sim_speed if poured >= slow_from and poured <= target + green_zone_g * 2.5 else fast
 
 
 # ---------- machine and milk ----------
@@ -1028,6 +1181,7 @@ func rate_shot(yield_g: float, time_s: float) -> String:
 	elif time_s > t_max + 2.0:
 		timing = "the shot ran slow (%d s, aim for %d–%d s). Grind coarser next time." % [roundi(time_s), t_min, t_max]
 	if absf(off) <= green_zone_g:
+		Sfx.buzz(40)  # stopped in the green: a small "got it" on phones
 		if timing == "":
 			say("Perfect! Right weight, right timing.")
 			Sfx.play("perfect", 0.0)
@@ -1072,6 +1226,9 @@ func open_steam() -> void:
 	to_toppings.hide()
 	steam_state = SteamState.OPEN
 	pitcher_depth = 0.0
+	var t := temp_range()  # exact targets only where the order already gives them (no spoilers)
+	var f := foam_range()
+	steam_legend.text = "Froth %d-%d%%   Temp %d-%d°C" % [roundi(f.x * 100.0), roundi(f.y * 100.0), roundi(t.x), roundi(t.y)] if guide_on and guide_strong else ""
 	steam_panel.show()
 	update_steam_ui()
 
@@ -1122,13 +1279,8 @@ func foam_words(foam: float, f: Vector2) -> String:
 
 
 func update_steam_ui() -> void:
-	var h := 322.0
-	var to_y := func(deg: float) -> float: return 4.0 + h * (1.0 - clampf(deg / 90.0, 0.0, 1.0))
 	var t := temp_range()
-	thermo_green.position.y = to_y.call(t.y)
-	thermo_green.size.y = to_y.call(t.x) - to_y.call(t.y)
-	thermo_fill.position.y = to_y.call(milk_temp)
-	thermo_fill.size.y = 330.0 - thermo_fill.position.y
+	temp_meter.show_value(milk_temp / 90.0, t.x / 90.0, t.y / 90.0)  # the thermometer reads 0-90 °C
 	temp_label.text = "%d°C" % roundi(milk_temp)
 	var c := Color("#36251D")
 	if milk_temp >= t.x and milk_temp <= t.y:
@@ -1136,12 +1288,17 @@ func update_steam_ui() -> void:
 	elif milk_temp > t.y:
 		c = Color("#C8463C")
 	temp_label.add_theme_color_override("font_color", c)
-	var w := 434.0
 	var f := foam_range()
-	froth_green.position.x = 3.0 + f.x * w
-	froth_green.size.x = (f.y - f.x) * w
-	froth_marker.position.x = 1.0 + milk_foam * (w - 2.0)
+	froth_meter.show_value(milk_foam, f.x, f.y)
 	steam_pitcher.position = Vector2(4, 200.0 - pitcher_depth * 110.0)
+	var steaming := steam_state == SteamState.STEAMING
+	var now := Time.get_ticks_msec() / 1000.0
+	for i in steam_puffs.size():  # visual only: clouds rise from the rim and fade
+		var k := fmod(now * 0.9 + i / 3.0, 1.0)
+		var puff := steam_puffs[i]
+		puff.visible = steaming
+		puff.position = Vector2(snappedf(56.0 + [-30.0, 26.0, -6.0][i] + sin(now * 3.0 + i) * 6.0, 3.0), snappedf(steam_pitcher.position.y - 6.0 - k * 60.0, 3.0))
+		puff.modulate.a = 1.0 - k
 	steam_milk.set_milk(true, milk_temp, milk_foam)  # warms and froths as you steam
 
 
@@ -1260,6 +1417,11 @@ func press(p: Vector2) -> void:
 	if hit(pitcher, p):
 		start_drag(pitcher, p)
 		return
+	for i in 2:  # the brew buttons (knobs above the group heads): start/stop that group's shot
+		if "knob%d" % i in under:
+			Sfx.buzz(20)  # a button press you can feel
+			toggle_brew(i)
+			return
 	for pf in pfs:
 		if hit(pf.sprite, p):
 			# A locked portafilter covers the group head: tapping it starts/stops the
@@ -1690,10 +1852,10 @@ func objective() -> Dictionary:
 	var o := {}
 	for g in groups:
 		if g.state == ShotState.EXTRACTING:
-			o = obj("brew", "Pull the shot", "Tap the portafilter again when the marker is in the green zone.",
+			o = obj("brew", "Pull the shot", "Tap the brew button again when the marker is in the green zone.",
 				"Watch the bar under the cup. Stop at about %d g: too early tastes sour, too late tastes burnt." % recipe.target_yield_g,
-				"group%d" % g.index,
-				"Tap the portafilter again at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
+				"knob%d" % g.index,
+				"Tap the brew button again at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
 	if art_panel.visible:
 		o = obj("art", "Create latte art", "Tap when the pitcher is over the middle of the cup.",
 			"Watch the pitcher swing above the cup and tap as it passes the middle mark. The closer to the middle, the better the pattern.", "",
@@ -1753,9 +1915,9 @@ func objective() -> Dictionary:
 					"Drag the cup onto the steel scale under the group head where your portafilter is.", "tray%d" % g.index,
 					full)
 			else:
-				o = obj("brew", "Pull the shot", "Tap the portafilter to start the shot.",
-					"Tap the locked portafilter once to start. A bar appears under the cup: tap again when the marker is in the green zone.", "group%d" % g.index,
-					"Tap the portafilter to start. Stop at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
+				o = obj("brew", "Pull the shot", "Tap the brew button above the portafilter to start.",
+					"Tap the round brew button above your portafilter (tapping the portafilter works too). A bar appears under the cup: tap again when the marker is in the green zone.", "knob%d" % g.index,
+					"Tap the brew button to start. Stop at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
 	elif recipe.get("ice", false) and not c.ice:
 		o = obj("ice", "Add ice", "Drop the cup on the ICE bin.",
 			"The ice bin is the steel tray at the bottom of the fridge, under the COLD MILK door. Drag the cup onto it.", "ice",
@@ -1957,3 +2119,99 @@ func set_stream(g: Group, c: Cup) -> void:
 	if c:
 		end_y = c.sprite.position.y + float(CUPS[c.kind].rim_y) + 4.0
 	g.stream.size.y = maxf(end_y - g.stream.position.y, 2.0)
+
+
+## A pixel-art gauge for the steam popup (drawn, 3 screen px per art px): a rounded tube with
+## tick marks, the target band (pale green, darker edge lines, a green bracket beside the tube that
+## stays visible when the fill covers the band), the fill (turns green inside the band) and a
+## pointer at the level. `bulb` = thermometer bulb at the bottom. Visual only.
+class Meter extends Control:
+	const U := 3.0
+	const TRACK := Rect2(18, 9, 24, 288)  # the inside of the tube
+	const OUTLINE := Color("#3A2416")
+	const GREEN := Color("#4E9A3A")
+	var bulb := false
+	var value := 0.0
+	var lo := 0.0
+	var hi := 1.0
+	var fill := Color.RED
+	var fill_hi := Color.RED
+	var fill_lo := Color.RED
+
+	func _init() -> void:
+		mouse_filter = MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(60, 345)
+		size = custom_minimum_size
+
+	func colors(base: Color, light: Color, dark: Color) -> void:
+		fill = base
+		fill_hi = light
+		fill_lo = dark
+
+	func show_value(v: float, low: float, high: float) -> void:
+		v = clampf(v, 0.0, 1.0)
+		if v != value or low != lo or high != hi:
+			value = v
+			lo = low
+			hi = high
+			queue_redraw()
+
+	## Rounded box: two overlapping rects leave each corner pixel open.
+	func box(r: Rect2, c: Color) -> void:
+		draw_rect(Rect2(r.position.x + U, r.position.y, r.size.x - 2.0 * U, r.size.y), c)
+		draw_rect(Rect2(r.position.x, r.position.y + U, r.size.x, r.size.y - 2.0 * U), c)
+
+	func level_y(v: float) -> float:
+		return snappedf(TRACK.end.y - clampf(v, 0.0, 1.0) * TRACK.size.y, U)
+
+	## Pixel disc by rows (the thermometer bulb).
+	func disc(centre: Vector2, r: float, c: Color) -> void:
+		var y := -r
+		while y < r:
+			var half := snappedf(sqrt(maxf(r * r - (y + U / 2.0) * (y + U / 2.0), 0.0)), U)
+			draw_rect(Rect2(centre.x - half, centre.y + y, half * 2.0, U), c)
+			y += U
+
+	func _draw() -> void:
+		var inside := value >= lo and value <= hi
+		var base := Color("#7CC95A") if inside else fill
+		var light := Color("#B5E78F") if inside else fill_hi
+		var dark := GREEN if inside else fill_lo
+		var bulb_c := Vector2(TRACK.get_center().x, TRACK.end.y + 24.0)
+		# tube and bulb outline, then the glass
+		box(TRACK.grow(2.0 * U), OUTLINE)
+		if bulb:
+			disc(bulb_c, 24.0, OUTLINE)
+		box(TRACK.grow(U), Color("#FBF4EA"))
+		draw_rect(TRACK, Color("#FFFFFF"))
+		draw_rect(Rect2(TRACK.position, Vector2(U, TRACK.size.y)), Color("#EADCC3"))  # inner shadow
+		for i in range(1, 10):  # a tick every 10 %
+			draw_rect(Rect2(TRACK.end.x - 2.0 * U, level_y(i / 10.0), (3.0 if i == 5 else 2.0) * U - U, U), Color("#D9C7A8"))
+		# target band
+		var top := level_y(hi)
+		var bottom := level_y(lo)
+		draw_rect(Rect2(TRACK.position.x, top, TRACK.size.x, bottom - top), Color("#D7F2BF"))
+		# fill
+		var fy := level_y(value)
+		if bulb:
+			disc(bulb_c, 18.0, base)
+			disc(bulb_c + Vector2(-6, -6), 6.0, light)
+		if fy < TRACK.end.y or bulb:
+			var col := Rect2(TRACK.position.x + U, fy, TRACK.size.x - 2.0 * U, TRACK.end.y - fy + (U * 4.0 if bulb else 0.0))
+			draw_rect(col, base)
+			draw_rect(Rect2(col.position.x, col.position.y, U, col.size.y), light)  # shine
+			draw_rect(Rect2(col.end.x - U, col.position.y, U, col.size.y), dark)
+			draw_rect(Rect2(col.position.x, fy, col.size.x, U), light)  # surface
+		# band edges over everything, and the bracket outside the tube
+		for y in [top, bottom - U]:
+			draw_rect(Rect2(TRACK.position.x, y, TRACK.size.x, U), GREEN)
+		var bx := TRACK.position.x - 5.0 * U
+		draw_rect(Rect2(bx, top, U, bottom - top), GREEN)
+		draw_rect(Rect2(bx, top, 2.0 * U, U), GREEN)
+		draw_rect(Rect2(bx, bottom - U, 2.0 * U, U), GREEN)
+		# pointer at the level, right of the tube
+		var tip := TRACK.end.x + 2.0 * U + U
+		var widths := [U, 2.0 * U, 3.0 * U, 2.0 * U, U]
+		for i in widths.size():
+			var w: float = widths[i]
+			draw_rect(Rect2(tip + 3.0 * U - w, fy - 2.0 * U + i * U, w, U), OUTLINE)

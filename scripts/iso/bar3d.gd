@@ -348,6 +348,18 @@ func turn(p: Node3D, yaw: float, time := 0.35) -> void:
 	create_tween().tween_property(p, "rotation_degrees:y", target, time).set_trans(Tween.TRANS_SINE)
 
 
+## The mentor faces the camera (the player: the café view is their eyes) while she talks to
+## them (`to_player`), else the customer at the counter, or her idle pose when there is none.
+## Turning about her own axis leaves her head where it was, so the talk bubble still aims at it.
+func mentor_face(to_player: bool) -> void:
+	if to_player:
+		turn(mentor, ISO_YAW)  # people face +Z at yaw 0; the iso camera looks from yaw ISO_YAW
+	elif customer:
+		turn(mentor, yaw_towards(mentor.position, CafeRoom.CUSTOMER_SPOT))
+	else:
+		turn(mentor, MENTOR_IDLE_YAW)
+
+
 ## Small hop on whoever is speaking.
 func hop(p: Node3D) -> void:
 	if p == null:

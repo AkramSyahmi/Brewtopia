@@ -324,6 +324,11 @@ func hop(who: Node) -> void:
 	cafe.hop(who)
 
 
+## The mentor turns to the player while she talks to them, else back to the customer (Bar3D).
+func mentor_face(to_player: bool) -> void:
+	cafe.mentor_face(to_player)
+
+
 ## Shows a short reaction above someone's head for a moment.
 func emote(who: Node, text: String, time := 1.6) -> void:
 	cafe.emote(who, text, time)

@@ -70,17 +70,21 @@ The station is a `Node2D` world drawn at ×2 (640×360 base px). Page 1 (espress
 switching pages slides the world. Drop and tap targets are `SnapZone`s (Area2D + Marker2D) found with a physics point query.
 
 1. **Grind:** drag a portafilter (one waits on the mat, one in the right group head) into the grinder fork. Set the grind
-   with −/+ (1 fine … 10 coarse; the day starts at 8, ideal 5) and **hold** the grinder: 4 g/s. The grinder screen and a bubble show
+   with −/+ (1 fine … 10 coarse; the day starts at 8, ideal 5) and **hold** the grinder: 8 g/s, slowing to 2.5 g/s for the last 3 g. The grinder screen and a bubble show
    grams (green within ±0.5 g). Extra grounds undo a tamp.
 2. **Tamp:** drop the portafilter on the black mat and tap the tamper (pass/fail).
 3. **Lock:** drop it on either group head.
 4. **Cup:** take a latte cup (left half of the rack), a glass (right half) or a plastic iced cup (stack left of the
    machine) and put it on the scale under the portafilter. Dropping a cup on the ice bin adds ice.
-5. **Shot:** tap the locked portafilter. Simulated time runs at ×2, and flow depends on grind, dose and tamping. A bar with a green
+5. **Shot:** tap the brew button (the round knob above the group head; it glows green while the shot runs), or the locked
+   portafilter, which does the same. The simulated shot clock runs fast for the run-up (always about 4 real s) and at ×2
+   from 8 g short of the target through the good zone (`EspressoStation.shot_speed`), and flow depends on grind, dose and tamping. A bar with a green
    zone (±2 g, wider with the upgrade) follows the cup's weight. Tap again to stop (it stops automatically at 70 g). The station rates
    the shot Perfect / Good / Bad straight away.
 6. **Milk:** drag the pitcher to the COLD MILK fridge door → to the steam wand (popup: **hold** to heat at 12 °C/s,
-   drag lower for more foam, higher to only heat; press Done) → onto the cup. Iced drinks get cold milk poured straight
+   drag lower for more foam, higher to only heat; press Done or the X). The popup shows a Froth gauge and a thermometer
+   (drawn pixel tubes, `EspressoStation.Meter`: green target band with a bracket, level pointer, fill turns green in the band),
+   numbered steps, and the exact targets only on "full" assist orders → onto the cup. Iced drinks get cold milk poured straight
    in. Hot milk into a ceramic cup opens **latte art**: the pitcher swings, and you tap when it's over the middle (score 0–1).
    A small **Skip** button, or 30 s without a tap, closes it with no pattern, scored as the lowest pour (0.0, art score 40).
    Skipping after the pour only skips the wait and keeps the real score.
@@ -175,7 +179,9 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
 ### 3.3 Not implemented or unfinished
 - **Huawei services:** `addons/HmsPlugin/` contains the .aar files and an export plugin (v0.0), but no game code calls it
   (README: "integration in progress").
-- The project and package names are placeholders (`UXHMAC 2026`, `com.uxhmac.game`).
+- The app name is BREWTOPIA (`config/name`, Android `package/name`) with its own icon (`assets/icon/`, `tools/make_app_icon.gd`).
+  The package ID is still the placeholder `com.uxhmac.game`: decide it before the first public install (changing it later makes
+  phones see a new app, and it must match any AppGallery Connect registration). Renaming changed the desktop `user://` folder.
 - `assets/art/CREDITS.md` doesn't record a source for the logo (`assets/art/ui/brewtopia_logo.png`) or the BGM.
   Commit `0a90765` says `tools/import_art.gd` can bring in "AI or pack art". Which current assets, if any, came that way is
   **unknown**. Commit `1871d64` says the station art was painted by `tools/make_topping_art.gd`.
@@ -214,8 +220,8 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
    (`shift_day` holds the day being played). Quitting mid-day restarts the day exactly as it began; quitting on the summary
    keeps it. No save keys changed. Trade-off: if the app is killed mid-day, that day's friendship is lost along with its
    money and XP.
-8. **Patience** isn't reset by "Make it again", and reaching 0 has no effect beyond 0 tips. (Fixed on
-   feature/adeeb-brewtopia-work: it no longer drains while the Recipe Book or the latte-art popup is open.)
+8. **Patience:** reaching 0 has no effect beyond 0 tips. (Fixed on feature/adeeb-brewtopia-work: it no longer drains while the
+   Recipe Book or the latte-art popup is open, and "Make it again" tops it up to at least 50%, `REMAKE_PATIENCE`.)
 9. ~~**No undo or discard:**~~ Fixed on `feature/adeeb-brewtopia-work` (committed in `3063dd4`): an Undo button for
    syrups and toppings, discarding a drink by dropping its cup back on the rack or cup stack, and a Skip button plus 30 s
    timeout for latte art. To make them discoverable (uncommitted): day-1 mentor lines in `ch1_first_shift.json` (latte order:
@@ -238,7 +244,7 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
 
 ### 4.2 Suspected (not verified at runtime)
 - The objective panel grows downward with hint or feedback lines and may cover the grinder hopper and the iced-cup stack.
-- The New Game `ConfirmationDialog` probably uses Godot's default style rather than the pixel UI.
+- ~~The New Game `ConfirmationDialog` uses Godot's default style~~ (confirmed, then fixed: a cream sign, `build_confirm`).
 - The 3D café (outline shader on every mesh) renders behind the title and during dialogue; mobile performance is untested.
 - Input is mouse-event based and relies on Godot's default touch-to-mouse emulation on Android; multi-touch isn't handled.
 - The layout is fixed at 1280×720; phones with 19.5:9 or 20:9 screens will letterbox.
@@ -264,7 +270,7 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
 1. Keep running the three test entry points (see `CLAUDE.md`) before and after every change. Consider adding scripted
    checks for later-day systems (DayPlan, friendship, finale), because only day-1 order 4 is covered by the click-through.
 2. Text legibility: done (item 5 above). On a phone, check that nothing else reads badly at real size.
-3. Decide the intended behaviour for the confirmed issues (patience on "Make it again") before changing anything, because several of them affect scoring or saves.
+3. Patience on "Make it again": decided and done (top up to 50%). Still open: the package ID (see above).
 4. Fill the provenance gaps in `assets/art/CREDITS.md` (logo, BGM) before submitting.
 5. Plan the HMS integration and final app identity (name, package, icon) if the competition requires them.
 6. Add a `.gitattributes` to stop CRLF churn, and decide whether to keep the `colormap.png.import` change.

@@ -9,7 +9,10 @@ HUAWEI UXHMAC 2026 competition (Android).
 - Engine: **Godot 4.7.2** (`android/.build_version`). Renderer `mobile`. Viewport **1280×720**, stretch `canvas_items`.
 - Entry point: `run/main_scene = res://scenes/ui/title_screen.tscn`.
 - Autoload: `Audio` → `scripts/core/audio.gd` (the only one).
-- `config/name` is still `"UXHMAC 2026"`, and the Android package is `com.uxhmac.game`.
+- `config/name` is `"BREWTOPIA"` (also the Android app label, `package/name`); the Android package ID is still `com.uxhmac.game`
+  (kept on purpose: changing it makes phones treat it as a new app). App and launcher icons: `assets/icon/` (`tools/make_app_icon.gd`).
+  Desktop `user://` is named after `config/name`, so desktop saves from before the rename (under `UXHMAC 2026`) aren't read;
+  Android saves follow the package ID and are unaffected.
 
 Longer explanations: `PROJECT_HANDOVER.md`. Manual test procedure: `TESTING_CHECKLIST.md`.
 
@@ -60,13 +63,26 @@ and station are siblings that are **shown and hidden**, not scene changes.
   and the Next button are unchanged. Customer and mentor lines show the speaker's face (`set_talk_face`):
   `assets/ui/portraits/<look>.png` (look = `shift.sprites[role]`), 32 px art at 3× (`PORTRAIT_PX` 96), made by
   `tools/render_portraits.gd` from the `Bar3D.LOOKS` Kenney models. A role without a portrait falls back to the steaming cup.
+  The player has no body (first person: the café view is their eyes). The mentor (behind the counter, front right) turns to
+  face the camera while she speaks and on the RESULT note (`Bar3D.mentor_face(true)`, yaw `ISO_YAW`), and back to the
+  customer for other lines.
 - **Station state:** `PfState {EMPTY, DOSED, TAMPED, USED}`, `ShotState {IDLE, EXTRACTING}`,
   `MilkState {EMPTY, COLD, STEAMED}`, `SteamState {CLOSED, OPEN, STEAMING}`. Two portafilters, two group
   heads, max two cups.
-- **Grind/dose:** hold the grinder with a portafilter in the `fork` zone (4 g/s). Grind runs 1 (fine) to 10, the day starts at 8, and the ideal is 5.
+- **Grind/dose:** hold the grinder with a portafilter in the `fork` zone: 8 g/s, then 2.5 g/s for the last
+  `GRIND_SLOW_FROM_G` (3 g) of the dose (about 3 s for 18 g; let-go window ±0.5 g = 0.4 s). Grind runs 1 (fine) to 10, the day starts at 8, and the ideal is 5.
 - **Tamp:** tap the tamper while a dosed portafilter is on the `mat`. Pass/fail only.
-- **Shot:** tap the locked portafilter to start and stop. Flow comes from `EspressoModel.flow_rate`; simulated time runs at ×2.
+- **Shot:** tap the brew button (the round knob above each group head: `knob0`/`knob1` zones at `KNOBS`, tap area `KNOB_TAP`) or
+  the locked portafilter to start and stop. The knob glows green while its group runs (`Group.knob_lit`, recoloured at runtime
+  from `machine.png` by `lit_knob()`); the tutorial's brew step outlines the knob. Flow comes from `EspressoModel.flow_rate`. Real time is fast, then slow
+  (`shot_speed()`): the run-up to `SHOT_SLOW_FROM_G` (8 g) short of the target takes `SHOT_RUNUP_S` (4 s) at any grind, then
+  ×2 (`sim_speed`) through the good zone, fast again after it (about 7 s real at the ideal grind). The shot clock, grams and
+  every scored value are simulated, so scoring and the recipes' 25–30 s don't depend on it.
 - **Milk:** drag the pitcher to the fridge (cold) → steam zone (popup: hold = heat, lower = more foam) → onto a cup.
+  The popup (`build_steam_panel`, at x 690 so the left group head stays visible): "Steam Milk" banner, red X (= Done), Froth
+  gauge, the pitcher under the wand (press area 170×380, drag maths in `on_steam_input`), thermometer and °C box, numbered steps,
+  Done, and a legend whose exact targets show only on "full" assist (`guide_on and guide_strong`, set in `open_steam`). The gauges
+  are the drawn `EspressoStation.Meter` class (visual only; `show_value(value, lo, hi)` in 0–1, thermometer = °C / 90).
   `milk_temp` / `milk_foam` always hold the real values; `milk_heat()` gives the band: cold (< `COLD_MAX_C` 20 °C),
   warm (20–39 °C, tag WARM, state still `COLD`), steamed (≥ `STEAMED_MIN_C` 40 °C, state `STEAMED`). The tag, hover text,
   pour message, cup drawing (`CupLiquid`) and latte-art trigger all follow it. Only steamed milk poured into a ceramic `cup`
@@ -109,7 +125,7 @@ and station are siblings that are **shown and hidden**, not scene changes.
   query. Drops resolve on one anchor point per item: portafilter basket centre (`PF_BASKET`), cup centre, pitcher centre.
   `press()` checks targets in priority order: cups → toppings (page 1) → pitcher → portafilters → tamper → racks → brew → grinder.
   `_input` force-ends drags on mouse-up.
-- **Art-measured constants:** `GROUP0/1_HEAD_X`, `GROUP_HEAD_BOTTOM`, `PF_RIM`, `PF_BASKET`, `GRINDER_*`, `CUP_STAND_Y`,
+- **Art-measured constants:** `GROUP0/1_HEAD_X`, `KNOBS`/`KNOB_ART` (and the knob greys in `lit_knob()`), `GROUP_HEAD_BOTTOM`, `PF_RIM`, `PF_BASKET`, `GRINDER_*`, `CUP_STAND_Y`,
   `CUPS[*].anchor/inside/rim_y`, `FRIDGE_DOOR`, `PitcherMilk.CENTRE`, and the "keep in step" constants in
   `tools/make_topping_art.gd`. They are pixel positions in specific PNGs.
 - **Tutorial:** `objective()` / `objective_steps()` / `guide_rect()` work out the step from live state; moving
@@ -158,7 +174,8 @@ Project-specific rules:
   `tools/make_digit_font.gd` overwrites `BrewtopiaDigits.ttf`; `tools/patch_pixelify.py` (Python + fontTools) overwrites
   `PixelifySansBrew.ttf`. Don't edit the generated fonts by hand: change the tool and re-run it.
   `tools/render_portraits.gd` (needs a window) overwrites `assets/ui/portraits/*.png`; re-run it when a character's model or
-  look changes, or a new look is added to `Bar3D.LOOKS`.
+  look changes, or a new look is added to `Bar3D.LOOKS`. `tools/make_app_icon.gd` overwrites `assets/icon/*.png` (built from
+  `icon_cup_big.png`).
 - When art changes size or layout, re-measure the art-measured constants in the same change.
 - Data JSON keys are read by code: content edits are fine, key renames aren't. Changing `DayPlan`'s seed or what `recipes_seen` means
   changes every player's future days.
@@ -201,7 +218,6 @@ Confirmed (verified in code, data or screenshots):
 - The clock never reaches 6 PM (max 8 orders → 10:20 AM), so the moon icon never shows.
 - (Fixed on feature/adeeb-brewtopia-work: Pixelify's C/c read as O/o, 5 as S and "fi" as "A", via `PixelifySansBrew`; the
   digits font's bar-shaped full stop and solid 4, by dropping `.`, `:` and `4` from `CHARS` in `tools/make_digit_font.gd`.)
-- Patience isn't reset by "Make it again" (the remake keeps the time already used).
 - Freeing `Bar3D` within ~1.2 s of its creation (e.g. leaving the title or café immediately) prints
   "Lambda capture … was freed" / "create_tween on null" from the delayed timers in `Bar3D.steam_wisps()` (`bar3d.gd:145`). Harmless.
 - `ART_LIST.md` is referenced in comments but doesn't exist. Unused: `Bar3D` pov mode, `char_*.png`, `counter_bg.png`,
@@ -215,8 +231,11 @@ ticket narrowed to `TICKET_W` 220 (its left edge at x 1048, clear of the custome
 lines was dropped to keep the text column wide), body font `PixelifySansBrew` (C and c openings widened, 5 squared, ligatures off), the save written only at the day
 summary (quitting mid-day restarts the day cleanly; quitting on the summary keeps it), patience holds while the Recipe Book or
 latte art is open, discoverability: day-1 mentor lines for latte-art Skip/timeout, discard and Undo, plus "Tap Undo" nudges, digits font
-without `.` `:` `4`.
+without `.` `:` `4`. Uncommitted: "Make it again" tops patience up to at least 50% (`CafeShift.REMAKE_PATIENCE`, never lowers it);
+the New Game check is a cream sign with Cancel (focused) / Start fresh (`title_screen.gd` `build_confirm`, Esc closes it);
+phone vibration via `Sfx.buzz(ms)` (mobile only; brew knob 20 ms, a shot stopped in the green 40 ms, Perfect Brew 90 ms;
+Android `permissions/vibrate=true`); app name BREWTOPIA and icons.
 
 Suspected (not verified at runtime): pressing Hint while a feedback line shows can still make the objective panel tall;
-the New Game `ConfirmationDialog` probably uses Godot's default style; the 3D café may be heavy on low-end phones;
+the 3D café may be heavy on low-end phones;
 touch input relies on Godot's touch-to-mouse emulation.

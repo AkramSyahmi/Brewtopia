@@ -26,3 +26,11 @@ static func music(track_name: String) -> void:
 	var a := audio()
 	if a:
 		a.music(track_name)
+
+
+## A short phone vibration (haptic tick) for touch feedback: phones only (`mobile` feature), so
+## desktop, tools and tests never call it. Needs the Android export's VIBRATE permission
+## (export_presets.cfg: permissions/vibrate=true). `ms`: ~20 a tap, ~40 a success, ~90 a big moment.
+static func buzz(ms: int) -> void:
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(ms)

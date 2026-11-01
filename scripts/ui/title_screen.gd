@@ -28,7 +28,9 @@ var logo: TextureRect
 var header: Control  # logo + plaque; floats gently
 var menu: VBoxContainer
 var credits: PanelContainer
-var confirm: ConfirmationDialog
+var confirm: Control  # "Start a new café?": a cream sign over a dim, in the menu's style (open_confirm)
+var confirm_text: Label
+var confirm_cancel: Button
 var t := 0.0
 
 
@@ -106,8 +108,7 @@ func _ready() -> void:
 		cont.add_child(spark)
 	menu_button("New Game", "new_game", menu, Vector2(MENU_W, 66)).pressed.connect(func():
 		if SaveGame.exists():
-			confirm.dialog_text = "Start a new café? Your Day %d progress will be lost." % save.day
-			confirm.popup_centered()
+			open_confirm(save.day)
 		else:
 			start_game())
 	var audio = Sfx.audio()  # the Audio autoload (looked up, not named, so tools compile)
@@ -133,14 +134,8 @@ func _ready() -> void:
 		menu_button("Quit", "quit", menu, Vector2(MENU_W, 66)).pressed.connect(func(): get_tree().quit())
 	(cont if has_save else menu.get_child(1)).grab_focus.call_deferred()  # keyboard/controller start
 
-	confirm = ConfirmationDialog.new()
-	confirm.title = "New game"
-	confirm.ok_button_text = "Start fresh"
-	confirm.confirmed.connect(func():
-		SaveGame.reset()
-		start_game())
-	add_child(confirm)
 	build_credits()
+	build_confirm()
 	Sfx.music("title")
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.6)
@@ -257,6 +252,81 @@ func build_credits() -> void:
 	l.add_theme_color_override("font_color", ESPRESSO)
 	credits.add_child(l)
 	credits.hide()
+
+
+## The New Game check: a dim that blocks the menu, and a cream sign with the question and two
+## signs, Cancel (cream, focused first so a stray Enter is safe) and Start fresh (wood).
+func build_confirm() -> void:
+	confirm = Control.new()
+	confirm.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	add_child(confirm)
+	var dim := ColorRect.new()
+	dim.color = Color("#1E140C", 0.55)
+	dim.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	dim.mouse_filter = MOUSE_FILTER_STOP  # the menu underneath can't be pressed
+	confirm.add_child(dim)
+	var centre := CenterContainer.new()
+	centre.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	centre.mouse_filter = MOUSE_FILTER_IGNORE
+	confirm.add_child(centre)
+	var box := PanelContainer.new()
+	var s := frame("button_cream_normal", 15, 15, 15, 18)
+	s.set_content_margin_all(30)
+	s.content_margin_bottom = 34
+	box.add_theme_stylebox_override("panel", s)
+	box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	box.custom_minimum_size = Vector2(600, 0)
+	centre.add_child(box)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 14)
+	box.add_child(col)
+	var title := Label.new()
+	title.text = "Start a new café?"
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", ESPRESSO)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+	confirm_text = Label.new()
+	confirm_text.add_theme_font_override("font", PixelUI.font(600))
+	confirm_text.add_theme_font_size_override("font_size", 22)
+	confirm_text.add_theme_color_override("font_color", Color("#5A3414"))
+	confirm_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	confirm_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(confirm_text)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 4)
+	col.add_child(gap)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 16)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(buttons)
+	confirm_cancel = menu_button("Cancel", "continue", buttons, Vector2(230, 62), true, 26)
+	(confirm_cancel.get_meta("row") as HBoxContainer).get_child(0).hide()  # no icon: just the word
+	(confirm_cancel.get_meta("row") as HBoxContainer).alignment = BoxContainer.ALIGNMENT_CENTER
+	confirm_cancel.pressed.connect(close_confirm)
+	var fresh := menu_button("Start fresh", "new_game", buttons, Vector2(280, 62), false, 26)
+	fresh.pressed.connect(func():
+		confirm.hide()
+		SaveGame.reset()
+		start_game())
+	confirm.hide()
+
+
+func open_confirm(day: int) -> void:
+	confirm_text.text = "Your Day %d progress will be lost.\nThis can't be undone." % day
+	confirm.show()
+	confirm_cancel.grab_focus()
+
+
+func close_confirm() -> void:
+	confirm.hide()
+	menu.get_child(1).grab_focus()  # back on New Game
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if confirm and confirm.visible and event.is_action_pressed("ui_cancel"):  # Esc / controller B
+		close_confirm()
+		get_viewport().set_input_as_handled()
 
 
 func start_game() -> void:

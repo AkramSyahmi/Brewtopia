@@ -142,8 +142,9 @@ func run() -> void:
 	check(cup.shadow.visible and cup.sprite.z_index < pf.sprite.z_index, "cup shadow/depth wrong")
 	await shot("05_cup_on_scale")
 
-	# Shot: tap the locked portafilter (its handle: the cup covers the basket), stop at the target.
-	await guide_on("group0")
+	# Shot: the guide points at the brew button (knob0). Start with the portafilter-tap shortcut
+	# (its handle: the cup covers the basket), stop with the brew button at the target.
+	await guide_on("knob0")
 	var handle := pf.sprite.position + Vector2(8, 10)
 	check(not st.hit(cup.sprite, handle), "handle tap point is over the cup")
 	await tap(handle)
@@ -156,7 +157,7 @@ func run() -> void:
 	t0 = Time.get_ticks_msec()
 	while cup.yield_g < r.target_yield_g and Time.get_ticks_msec() - t0 < 30000:
 		await process_frame
-	await tap(handle)
+	await tap(st.guide_rect("knob0").get_center())
 	check(st.groups[0].state != EspressoStation.ShotState.EXTRACTING and not cup.drink.is_empty(), "shot did not stop / no drink")
 	await shot("07_espresso")
 

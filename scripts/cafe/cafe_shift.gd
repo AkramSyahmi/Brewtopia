@@ -32,8 +32,8 @@ const PORTRAIT_PX := 96.0  # 32 art px at 3 screen px each
 const TALK_PAGE_LINES := 3  # a longer line is shown in pages (Next turns the page)
 
 ## Tuning knobs: editable in the Inspector when CafeShift is selected.
-@export var DISPENSE_G_PER_S := 4.0  # grams of coffee per second while holding the grinder
-@export var SIM_SPEED := 2.0  # simulated seconds per real second (playtest: 3x felt too fast)
+@export var DISPENSE_G_PER_S := 2.5  # grams per second while holding the grinder, near the dose (8 g/s before: EspressoStation.grind_fast_g_per_s)
+@export var SIM_SPEED := 2.0  # simulated seconds per real second near the shot target (playtest: 3x felt too fast there); the run-up is faster (EspressoStation.shot_speed)
 
 enum Step { DIALOGUE, BAR, RESULT, SUMMARY }
 
@@ -55,6 +55,9 @@ var waiting := false  # the customer is waiting for their drink (patience drains
 
 ## Seconds a customer waits before their patience runs out.
 const PATIENCE_S := 150.0
+## "Make it again" tops patience back up to at least this (0..1): the failed drink already cost
+## the score, so the remake gets a fair chance at a tip instead of starting nearly empty.
+const REMAKE_PATIENCE := 0.5
 var step := Step.DIALOGUE
 
 var lines: Array = []
@@ -422,6 +425,7 @@ func show_step(new_step: Step) -> void:
 			readout.text = ""
 			tip.visible = line[0] != "CHOICE"  # the answers say it's the player's turn
 			set_talk_role(role_of(line[0]), line[0])  # before the hop, so the bubble aims at the head at rest
+			bar.mentor_face(line[0] == "MENTOR")  # she turns to you while she speaks, back to the customer otherwise
 			if line[0] == "CHOICE":
 				next_button.hide()
 				speaker.text = shift.cast.PLAYER
@@ -588,9 +592,12 @@ func on_served(drink: Dictionary) -> void:
 	readout.add_theme_font_size_override("font_size", PixelUI.NUMBER_PX)
 	show_breakdown(r, details)
 	Sfx.play({"Perfect Brew": "perfect", "Great Cup": "perfect", "Good Effort": "good"}.get(r.grade, "fail"), 0.0)
+	if r.grade == "Perfect Brew":
+		Sfx.buzz(90)
 	# Diagnosis always shows, whatever the assist level: it is the core lesson.
 	speaker.text = shift.cast.MENTOR
 	set_talk_role("mentor")
+	bar.mentor_face(true)  # her verdict on the drink is said to you
 	tip.text = "\n".join(paginate(r.tip))  # the whole note, wrapped to the bubble (it shows with the result, no paging)
 	talk_box.reset_size.call_deferred()
 	var who: String = current_order().customer
@@ -600,6 +607,8 @@ func on_served(drink: Dictionary) -> void:
 			say([[who, "Hmm, this isn't right. Could you make it again?"]], func():
 				bar.hide_served_cup()
 				station.go_page(0, false)
+				patience = maxf(patience, REMAKE_PATIENCE)
+				refresh_hud()
 				waiting = true
 				show_step(Step.BAR)))
 		return

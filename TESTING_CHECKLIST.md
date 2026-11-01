@@ -71,6 +71,38 @@ Not checked for C + D: playing day 1 by hand to read the new mentor lines in con
 | Faces | `tools/render_portraits.gd` → 5 portraits (32×32); screenshots of customer, mentor and result lines | ✅ each customer / mentor line shows that character's face at 96 px (whole head, hair or headscarf, shoulders), matching the café model; the player's box has no face |
 | Regression | parse, unit tests, `regression_flow.gd` ×3, assist/art/undo/C+D/E checks, full day, title 600 frames | ✅ see the report |
 
+**Faster grinder and shot (fast, then slow near the target), uncommitted, 2026-11-01:**
+
+| Area | How | Result |
+|---|---|---|
+| Grinder | Scratch: the station's own rule, latte recipe | ✅ 18 g in 3.1 s (was 4.5 s); let-go window ±0.5 g = 0.40 s (was 0.25 s) |
+| Shot | Scratch: `shot_speed()` for grinds 1, 3, 5, 6, 8, 10 | ✅ target reached at 11.5 / 8.8 / 7.1 / 6.4 / 5.6 / 4.5 s real (was 33.6 / 21.5 / 13.8 / 11.0 / 7.0 / 4.5 s); green-zone windows unchanged (3.73 / 2.39 / 1.52 / 1.22 / 0.78 / 0.50 s); the shot clock still shows simulated seconds (28 s at the ideal grind) |
+| Regression | parse, unit tests, `regression_flow.gd` ×3, `capture_views.gd`, full day (real input, every drink ≥ 90), all scratch checks | ✅ all PASS |
+
+**Mentor faces the player while she talks, uncommitted, 2026-11-01:** screenshots of a mentor line, a customer line and the
+result screen: ✅ she faces the camera (face matches her portrait, clear of the bubble) on her lines and the result note, and
+turns back to the counter for the customer's line; the bubble still aims at her head.
+
+**Steam popup redesign, uncommitted, 2026-11-01:** screenshots (open, steaming, both in the green, over, a "hints" order):
+✅ "Steam Milk" banner and red X; Froth gauge | pitcher | thermometer with °C box | numbered "How to Steam" steps and Done;
+gauges are drawn pixel tubes (ticks, pale-green band with green edge lines, a green bracket beside the tube, level pointer;
+the fill turns green inside the band); steam clouds rise from the rim only while steaming; the legend shows the exact targets
+on "full" orders only (hidden on "hints"/"none"). Same footprint as before (x 690 →), so the left group head stays in view.
+Regression: parse, unit tests, `regression_flow.gd` ×3, `capture_views.gd`, assist / undo / milk / cd / full-day checks ✅ all PASS.
+
+**Name, icon, remake patience, New Game sign, vibration, uncommitted, 2026-11-01:** scratch click-through ✅: config name
+BREWTOPIA and the icon loads; New Game opens the cream sign with Cancel focused and the day named; Cancel and Esc close it and
+keep the save; Start fresh resets the save and opens the café; a failed drink at 10% patience → "Make it again" → 50%; at 80% it
+stays 80%; `Sfx.buzz` is silent on desktop. Not checked: vibration and the launcher icon on a real phone (needs an APK).
+
+**Brew buttons, uncommitted, 2026-11-01:** the two knobs on `machine.png` start and stop their group's shot (`knob0`/`knob1`
+zones, 34×34 base px, clear of the portafilters and drop zones); the portafilter tap still works. Screenshots: ✅ the brew step
+outlines the left knob ("Tap the brew button above the portafilter to start.", 2 lines); the knob glows green while the shot runs.
+`regression_flow.gd` now expects the brew step's guide on `knob0` (was `group0`, an intended change), starts with the portafilter
+tap and stops with the knob: ✅ FLOW PASS ×3. Parse, unit tests, `capture_views.gd`, assist / undo / milk / cd / full-day checks ✅.
+
+Not checked for the timing: how it feels by hand on a phone (touch delay in the 1.5 s green window).
+
 Not checked for A + B and the fonts: on a phone (text size at real scale), dialogue lines with digits shown in play, and
 every screen for other letters that might read badly (only the screens in `capture_views.gd` were looked at).
 
@@ -126,7 +158,7 @@ Godot 4.7.2 on this machine is `C:\Users\HP\Documents\Godot\Godot_console.exe` (
       dropping elsewhere returns it.
 - [ ] The grind display starts at "Grind 8"; −/+ change it within 1–10.
 - [ ] Holding the grinder with a portafilter in the fork: grounds stream, grinder sound, the scale screen and "x.x g / 18 g" bubble
-      rise about 4 g/s; the bubble turns green within ±0.5 g of the dose and red above +1 g.
+      rise fast (8 g/s), then slow (2.5 g/s) for the last 3 g; the bubble turns green within ±0.5 g of the dose and red above +1 g.
 - [ ] Holding the grinder with no portafilter warns "Coffee is going everywhere!" and adds nothing.
 - [ ] Releasing over a button still stops the grinder; a drag released over a button still drops the item.
 - [ ] Dropping a used portafilter on the knock box empties it (knock sound) and returns it to the mat if the mat is free.
@@ -140,8 +172,10 @@ Godot 4.7.2 on this machine is `C:\Users\HP\Documents\Godot\Godot_console.exe` (
 ## 5. Espresso extraction
 - [ ] Taking a latte cup (left of the rack), a glass (right) or an iced cup (stack); a third cup is refused ("two cups out").
 - [ ] A cup snaps onto either scale under the group head, centred, with a contact shadow, drawn behind the portafilter.
-- [ ] Tapping a locked, tamped portafilter starts the shot: stream, pour sound, a timing bar with a green zone, and "x.x g · n s".
-- [ ] Tapping again stops it: feedback Perfect / Good / Bad with a reason (fast or slow grind, short or long); the portafilter becomes used.
+- [ ] Tapping the brew button (the round knob above each group head) starts that group's shot: stream, pour sound, a timing bar
+      with a green zone, and "x.x g · n s"; the knob glows green while it runs. Tapping the locked portafilter does the same.
+      Hovering a knob says "Brew button: tap to start or stop the shot". The tutorial outline (and arrow on "full") is on the knob.
+- [ ] Tapping the knob (or the portafilter) again stops it: feedback Perfect / Good / Bad with a reason (fast or slow grind, short or long); the portafilter becomes used.
 - [ ] Reference calculations (dose 18, tamped): grind 5 → pace about 27.5 s (in window); grind 8 → about 14 s ("ran fast").
 - [ ] No cup → "going down the drain"; no portafilter, an empty one or a used one gives a message, and no shot starts.
 - [ ] The shot stops by itself at 70 g. Both group heads can run at once.
@@ -150,8 +184,9 @@ Godot 4.7.2 on this machine is `C:\Users\HP\Documents\Godot\Godot_console.exe` (
 - [ ] Hovering the fridge door shows a tooltip and outline; dragging the pitcher there shows "Release to fill".
 - [ ] Dropping it on the fridge: "Cold milk added!", the pitcher tag reads COLD, white milk shows in the pitcher.
 - [ ] An empty pitcher on the steam wand is refused; a filled one opens the steam popup (on top of the HUD and order note).
-- [ ] Holding on the pitcher heats it (thermometer, °C readout, steam sound); dragging lower raises the froth marker,
-      higher only heats. Green zones: 60–65 °C, foam 0.25–0.40 (cappuccino 0.50–0.70).
+- [ ] Holding on the pitcher heats it (thermometer, °C readout, steam sound, steam clouds off the rim); dragging lower fills
+      the Froth gauge, higher only heats. A gauge's fill turns green inside its band. The red X does the same as Done. On a
+      "full" order the legend shows the exact targets; on "hints"/"none" only "Target zones". Green zones: 60–65 °C, foam 0.25–0.40 (cappuccino 0.50–0.70).
 - [ ] Done: STEAMED if ≥ 40 °C ("Steamed milk ready! … °C, silky foam / too flat / too foamy"); WARM if 20–39 °C ("only
       warm … not steamed yet"); COLD below 20 °C ("still cold"). The hover text matches the tag ("Warm Milk (30°C), not steamed yet").
 - [ ] WARM milk: pouring it gives no latte art and "Poured warm milk (…°C)…", the cup shows flat milk, and the result says
@@ -202,7 +237,8 @@ Godot 4.7.2 on this machine is `C:\Users\HP\Documents\Godot\Godot_console.exe` (
 - [ ] The mentor note praises the parts that scored 100 and names one fix.
 - [ ] A perfect drink scores 100 with all categories Excellent (see `docs/screenshots/result.png`).
 - [ ] The wrong cup costs 30 accuracy; missing milk 40; missing ice 30; each syrup pump off 10; each topping missing or extra 10.
-- [ ] Score < 40 → "?" emote and "Make it again" (back to the bar); the drink isn't counted.
+- [ ] Score < 40 → "?" emote and "Make it again" (back to the bar); the drink isn't counted. Patience comes back at 50% if it
+      was lower (never lowered).
 - [ ] Two-drink order: the first serve gives "Drink 1 of 2 served…" and you stay at the bar; the result after the second
       shows the average.
 - [ ] Vague order: the result headline starts with "They wanted: <drink>".
