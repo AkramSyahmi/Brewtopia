@@ -55,8 +55,8 @@ func set_drink(coffee_h: float, milk_h: float, drink: Dictionary) -> void:
 	want_coffee = coffee_h
 	want_milk = milk_h
 	foam = drink.get("milk_foam", 0.0)
-	art = drink.has("art")
-	cold = drink.get("milk_temp", 99.0) < 20.0
+	art = drink.has("art") and not drink.has("art_result")  # a skipped / timed-out round left no pattern
+	cold = drink.get("milk_temp", 99.0) < EspressoStation.STEAMED_MIN_C  # not steamed: flat, no foam (as the pitcher tag said)
 	var syrups: Dictionary = drink.get("syrups", {})
 	base = CHOC if syrups.has("chocolate") else COFFEE
 	milk_col = MILK if cold else MILK.lerp(CREMA, 0.3)  # steamed milk takes on warm coffee colour

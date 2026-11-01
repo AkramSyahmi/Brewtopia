@@ -110,8 +110,8 @@ static func evaluate(recipe: Dictionary, drink: Dictionary) -> Dictionary:
 		var milk_short: String
 		var slightly := "slightly" if outside(temp, recipe.milk.temp_min, recipe.milk.temp_max) <= 3.0 else "well"
 		if wants_ice and temp > recipe.milk.temp_max:
-			milk_tip = "Iced drinks use cold milk straight from the fridge. Steamed milk (%d°C) melts the ice!" % roundi(temp)
-			milk_short = "Steamed milk went into an iced drink."
+			milk_tip = "Iced drinks use cold milk straight from the fridge. Milk warmed to %d°C melts the ice!" % roundi(temp)
+			milk_short = "Warm milk went into an iced drink."
 		elif outside(temp, recipe.milk.temp_min, recipe.milk.temp_max) == 0.0:
 			milk_tip = "The milk was %s. Keep the froth marker in the green zone: pitcher low adds air, high only heats." % (
 				"too flat" if foam < recipe.milk.foam_min else "too foamy")
@@ -126,9 +126,16 @@ static func evaluate(recipe: Dictionary, drink: Dictionary) -> Dictionary:
 			milk_short = "Milk temperature was %s above the ideal range." % slightly
 		issues.append({"loss": (100.0 - milk) * (0.3 if has_art else 0.4), "root": false, "text": milk_tip, "short": milk_short})
 	if has_art and art_score(art) < 100.0:
-		issues.append({"loss": (100.0 - art_score(art)) * 0.15, "root": false,
-			"text": "The latte art came out lopsided. Tap when the pitcher is right over the middle of the cup.",
-			"short": "The latte art was off-centre."})
+		var art_text := "The latte art came out lopsided. Tap when the pitcher is right over the middle of the cup."
+		var art_short := "The latte art was off-centre."
+		match drink.get("art_result", ""):  # the round ended without a pour (same score as the lowest pour)
+			"skipped":
+				art_text = "You skipped the latte art. Next time tap as the pitcher passes the middle of the cup."
+				art_short = "The latte art was skipped."
+			"timeout":
+				art_text = "The latte art ran out of time. Tap as the pitcher passes the middle of the cup."
+				art_short = "The latte art ran out of time."
+		issues.append({"loss": (100.0 - art_score(art)) * 0.15, "root": false, "text": art_text, "short": art_short})
 
 	# A drink missing ingredients is the wrong drink, so accuracy scales the whole score
 	# (playtest change from the GDD 7.1 weights, where accuracy was only 20%).

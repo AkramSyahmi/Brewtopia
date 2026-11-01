@@ -2,6 +2,7 @@
   "recipe_id": "mocha",
   "display_name": "Mocha",
   "unlock_level": 3,
+  "latte_art": true,
   "riddles": ["Coffee and chocolate together, hot, with cream on top!", "Something like hot chocolate, but with coffee. And whipped cream."],
   "cup": "cup",
   "dose_g": 18,

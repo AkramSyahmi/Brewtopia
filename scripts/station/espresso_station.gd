@@ -24,8 +24,10 @@ signal milk_frothed(quality: String, milk: Dictionary)  ## {temp, foam}; same ra
 enum PfState { EMPTY, DOSED, TAMPED, USED }
 ## A group head.
 enum ShotState { IDLE, EXTRACTING }
-## What is in the milk pitcher. COLD = filled at the fridge; STEAMED = heated at the wand
-## (to STEAMED_MIN_C or more). Pouring empties it.
+## What is in the milk pitcher. COLD = milk that isn't steamed (below STEAMED_MIN_C: fresh
+## from the fridge, or only warmed at the wand); STEAMED = heated to STEAMED_MIN_C or more.
+## Pouring empties it. milk_temp / milk_foam always keep the real values; milk_heat() names
+## the temperature band that the tag, the hover text and pouring all go by.
 enum MilkState { EMPTY, COLD, STEAMED }
 ## The steam wand popup: closed, open with the pitcher under the wand, or steaming.
 enum SteamState { CLOSED, OPEN, STEAMING }
@@ -89,6 +91,7 @@ const DOUBLE_SHOT_G := 14.0  # doses from here up count as a double shot
 const AERATE_PER_S := 0.14  # froth gained per second with the wand tip at the surface
 const FOAM_DEFAULT := Vector2(0.25, 0.4)  # green froth zone when the recipe sets none
 const STEAMED_MIN_C := 40.0  # milk this hot or hotter counts as steamed
+const COLD_MAX_C := 20.0  # milk below this is cold (as from the fridge); in between it is only warm
 const GUIDE_PAD := 3.0  # base px between a highlighted thing and the yellow outline
 const FRIDGE_DOOR := Rect2(5, 5, 64, 96)  # glass door within milk_fridge.png (see tools/make_station_art.gd)
 const MILK_SOURCE := Rect2(FRIDGE_AT + FRIDGE_DOOR.position, FRIDGE_DOOR.size)  # the door with the milk (not the ice bin below)
@@ -162,6 +165,7 @@ class Cup:
 	var shadow: ColorRect  # soft contact shadow, shown while it stands on a scale pad
 	var back_pos := Vector2.ZERO  # where it waits on the espresso page
 	var back_spot := "counter"
+	var extras_log: Array = []  # this drink's syrup pumps / toppings in the order added, for Undo: ["syrup" | "topping", name]
 
 
 var recipe: Dictionary
@@ -185,6 +189,7 @@ var milk_status: Node2D  # milk surface, steam wisps and the status tag drawn on
 var milk_hover: Panel  # outline around the cold milk source (hover / drop target)
 var tooltip: Label  # short hover text next to the pointer
 var guide_on := true  # highlight the equipment for the current objective
+var guide_strong := true  # also the bobbing arrow over it (CafeShift: "full" assist only)
 var guide_target := ""  # objective().target being highlighted
 var guide_box: Panel
 var guide_arrow: Polygon2D
@@ -224,6 +229,7 @@ var steam_milk: PitcherMilk  # the milk in the popup pitcher
 var pitcher_milk: PitcherMilk  # the milk in the counter pitcher
 var to_toppings: Button
 var to_espresso: Button
+var undo_button: Button  # topping page: takes back the last syrup pump / topping (undo_extra)
 var add_ins: Label
 
 
@@ -440,14 +446,26 @@ func build_milk_feedback() -> void:
 	update_pitcher_visual()
 
 
-## Milk surface in the pitcher's mouth (white = cold, cream with foam dots + steam wisps =
-## steamed), plus a text tag under it so the state never depends on colour alone.
+## The pitcher's milk by temperature: "" (empty), "cold" (below COLD_MAX_C), "warm"
+## (warmed at the wand but under STEAMED_MIN_C: not steamed) or "steamed".
+func milk_heat() -> String:
+	if milk_state == MilkState.EMPTY:
+		return ""
+	if milk_temp >= STEAMED_MIN_C:
+		return "steamed"
+	return "cold" if milk_temp < COLD_MAX_C else "warm"
+
+
+## Milk surface in the pitcher's mouth (its real temperature and foam: white when cold,
+## creamier with foam dots as it warms, steam wisps once steamed), plus a text tag under it
+## (EMPTY / COLD / WARM / STEAMED) so the state never depends on colour alone.
 func update_pitcher_visual() -> void:
 	for n in milk_status.get_children():
 		n.queue_free()
-	var tag_text: String = ["EMPTY", "COLD", "STEAMED"][milk_state]
+	var heat := milk_heat()
+	var tag_text: String = {"": "EMPTY", "cold": "COLD", "warm": "WARM", "steamed": "STEAMED"}[heat]
 	var steamed := milk_state == MilkState.STEAMED
-	pitcher_milk.set_milk(milk_state != MilkState.EMPTY, milk_temp if steamed else 5.0, milk_foam if steamed else 0.0)
+	pitcher_milk.set_milk(milk_state != MilkState.EMPTY, milk_temp, milk_foam)
 	if steamed:
 		for k in 2:  # steam wisps, animated in _process
 			var w := rect(Color(1, 1, 1, 0.7), Vector2(21 + k * 14, -4), Vector2(2, 5), milk_status)
@@ -456,7 +474,7 @@ func update_pitcher_visual() -> void:
 	var l := Label.new()
 	l.text = tag_text
 	pixel_text(l, 8)
-	l.add_theme_color_override("font_color", [Color("#C9BFB5"), Color("#BFE3FF"), Color("#FFD9A0")][milk_state])
+	l.add_theme_color_override("font_color", {"": Color("#C9BFB5"), "cold": Color("#BFE3FF"), "warm": Color("#F5E7CA"), "steamed": Color("#FFD9A0")}[heat])
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.size = Vector2(120, 22)  # = the 60x11 plate at half scale
@@ -485,22 +503,30 @@ func float_text(text: String) -> void:
 
 
 func pitcher_words() -> String:
-	match milk_state:
-		MilkState.COLD:
+	match milk_heat():
+		"cold":
 			return "Cold Milk"
-		MilkState.STEAMED:
+		"warm":
+			return "Warm Milk (%d°C), not steamed yet" % roundi(milk_temp)
+		"steamed":
 			return "Steamed Milk (%d°C)" % roundi(milk_temp)
 	return "Empty Pitcher"
 
 
 ## Hover help (mouse pointer): the cold milk source and the pitcher's contents. While the
-## pitcher is dragged, the milk source lights up as a drop target.
+## pitcher is dragged, the milk source lights up as a drop target; while a full cup is
+## dragged over the rack or cup stack, it warns that letting go pours the drink away.
 func update_hover(screen_pos: Vector2) -> void:
 	var p := local(screen_pos)
 	var text := ""
 	var over_milk := page == 0 and "fridge" in zones_at(p if dragging != pitcher else pitcher.position + pitcher.texture.get_size() / 2)
+	var held: Cup = cup_of(dragging) if dragging else null
 	if dragging == pitcher:
 		text = "Release to fill with cold milk" if over_milk else ""
+	elif held and page == 0 and (not held.drink.is_empty() or held.ice):
+		var under := zones_at(held.sprite.position + held.sprite.texture.get_size() / 2)  # the point drop_cup uses
+		if "rack" in under or "iced_stack" in under:
+			text = "Release to pour the drink away"
 	elif dragging == null and page == 0:
 		if hit(pitcher, p):
 			text = pitcher_words()
@@ -716,6 +742,17 @@ func build_nav() -> void:
 	to_espresso.pressed.connect(func(): go_page(0))
 	to_espresso.hide()
 	add_child(to_espresso)
+	undo_button = small_button("Undo", Vector2(110, 40))  # topping page: on the counter under the containers
+	undo_button.tooltip_text = "Take back the last syrup pump or topping"
+	for state in ["normal", "hover", "pressed", "disabled"]:  # the same wood sign; greyed out when there's nothing to undo
+		undo_button.add_theme_stylebox_override(state, PixelUI.frame(PixelUI.MENU % ("button_wood_" + state), Vector4i(15, 15, 15, 18), Vector4(14, 6, 14, 9)))
+	undo_button.add_theme_font_size_override("font_size", 18)
+	undo_button.add_theme_color_override("font_color", Color("#F3E6CC"))
+	undo_button.position = Vector2(40, 624)  # below the topping containers (they end at y 620), above the counter edge
+	undo_button.pressed.connect(undo_extra)
+	undo_button.hide()
+	add_child(undo_button)
+	changed.connect(refresh_undo)
 
 
 func bubble(font_size := 26) -> Label:
@@ -1062,9 +1099,10 @@ func close_steam() -> void:
 		set_milk(MilkState.STEAMED)
 		say("Steamed milk ready! %s milk: %d°C, %s." % [quality, roundi(milk_temp), foam_words(milk_foam, f)])
 		float_text("Steamed milk ready!")
-	else:  # barely warmed: still counts as cold milk
+	else:  # not hot enough to count as steamed (the tag shows COLD or WARM)
 		set_milk(MilkState.COLD)
-		say("The milk is still cold (%d°C). Hold on the pitcher longer to steam it." % roundi(milk_temp))
+		say(("The milk is still cold (%d°C)." if milk_temp < COLD_MAX_C else "The milk is only warm (%d°C), not steamed yet.") % roundi(milk_temp)
+			+ " Hold on the pitcher longer to steam it.")
 	milk_frothed.emit(quality, {"temp": milk_temp, "foam": milk_foam})
 	changed.emit()
 
@@ -1107,10 +1145,14 @@ func update_steam_ui() -> void:
 	steam_milk.set_milk(true, milk_temp, milk_foam)  # warms and froths as you steam
 
 
+## Pours whatever is in the pitcher: the drink keeps the real temperature and foam (the
+## score judges them against the recipe). Only steamed milk into a ceramic cup gets latte
+## art; cold or merely warm milk is poured flat, as its tag said.
 func pour_milk(c: Cup) -> void:
 	c.drink.milk_temp = milk_temp
 	c.drink.milk_foam = milk_foam
-	var cold := milk_temp < 20.0
+	var heat := milk_heat()
+	var poured_temp := roundi(milk_temp)
 	Sfx.play("pump", 0.05, -2.0)
 	set_milk(MilkState.EMPTY)
 	milk_temp = 5.0
@@ -1118,20 +1160,38 @@ func pour_milk(c: Cup) -> void:
 	pitcher.texture = tex("pitcher")
 	return_pitcher()
 	update_cup_visual(c)
-	if not cold and c.kind == "cup":  # hot milk into a ceramic cup: latte art time
+	if heat == "steamed" and c.kind == "cup":  # steamed milk into a ceramic cup: latte art time
 		art_cup = c
 		art_panel.start()
 		return
-	say("Poured cold milk over the coffee." if cold else "Poured the milk.")
+	match heat:
+		"cold":
+			say("Poured cold milk over the coffee.")
+		"warm":
+			say("Poured warm milk (%d°C). It was never steamed, so it went in flat." % poured_temp)
+		_:
+			say("Poured the steamed milk.")
 	changed.emit()
 
 
+## The latte art round ended (poured, skipped or timed out: LatteArtPanel.result). A skip or
+## timeout keeps the lowest score and is noted in the drink (art_result), so the cup shows no
+## pattern and the mentor doesn't call it lopsided.
 func on_art_finished(score: float) -> void:
+	var skipped := art_panel.result  # "" = poured
 	if art_cup and art_cup in cups:
 		art_cup.drink.art = score
+		if skipped != "":
+			art_cup.drink.art_result = skipped
 		update_cup_visual(art_cup)
-	say("Beautiful rosetta!" if score >= 0.8 else "Nice pattern, a little lopsided." if score >= 0.5 else "The milk spread unevenly...")
-	Sfx.play("perfect" if score >= 0.8 else "good" if score >= 0.5 else "fail", 0.0)
+	if skipped == "skipped":
+		say("Latte art skipped.")
+	elif skipped == "timeout":
+		say("Time's up! Latte art skipped.")
+		Sfx.play("fail", 0.0)
+	else:
+		say("Beautiful rosetta!" if score >= 0.8 else "Nice pattern, a little lopsided." if score >= 0.5 else "The milk spread unevenly...")
+		Sfx.play("perfect" if score >= 0.8 else "good" if score >= 0.5 else "fail", 0.0)
 	changed.emit()
 
 
@@ -1241,12 +1301,19 @@ func press_toppings(p: Vector2) -> void:
 
 ## Syrups and toppings go into the cup touched last, or the first cup on a slot.
 func topping_cup() -> Cup:
+	var c := extras_cup()
+	if c == null:
+		say("Bring a drink with espresso in it first. It goes on a mat in the middle.")
+	return c
+
+
+## The cup syrups, toppings and Undo act on (see topping_cup), or null; says nothing.
+func extras_cup() -> Cup:
 	if active_cup and active_cup.spot.begins_with("slot") and not active_cup.drink.is_empty():
 		return active_cup
 	for c in cups:
 		if c.spot.begins_with("slot") and not c.drink.is_empty():
 			return c
-	say("Bring a drink with espresso in it first. It goes on a mat in the middle.")
 	return null
 
 
@@ -1255,6 +1322,7 @@ func add_syrup(s: String) -> void:
 	if c == null:
 		return
 	c.drink.syrups[s] = int(c.drink.syrups.get(s, 0)) + 1
+	c.extras_log.append(["syrup", s])
 	say("1 pump of %s (%d total)." % [s.replace("_", " "), c.drink.syrups[s]])
 	Sfx.play("pump", 0.1)
 	update_cup_visual(c)
@@ -1269,9 +1337,39 @@ func add_topping(t: String) -> void:
 		say("It already has %s." % t.replace("_", " "))
 		return
 	c.drink.toppings.append(t)
+	c.extras_log.append(["topping", t])
 	Sfx.play("shake", 0.1)
 	update_cup_visual(c)
 	changed.emit()
+
+
+## The Undo button: takes back the last syrup pump or topping added to the current cup
+## (newest first, one pump at a time). Only that cup's own additions, never below zero.
+func undo_extra() -> void:
+	var c := extras_cup()
+	while c and not c.extras_log.is_empty():
+		var last: Array = c.extras_log.pop_back()
+		var item: String = last[1]
+		var label := item.replace("_", " ")
+		if last[0] == "syrup" and int(c.drink.syrups.get(item, 0)) > 0:
+			c.drink.syrups[item] = int(c.drink.syrups[item]) - 1
+			if c.drink.syrups[item] == 0:
+				c.drink.syrups.erase(item)  # as if it was never added
+			say("Took back 1 pump of %s (%d left)." % [label, int(c.drink.syrups.get(item, 0))])
+		elif last[0] == "topping" and item in c.drink.toppings:
+			c.drink.toppings.erase(item)
+			say("Took the %s off." % label)
+		else:
+			continue  # no longer in the drink: nothing to take back for this entry
+		update_cup_visual(c)
+		changed.emit()
+		return
+
+
+func refresh_undo() -> void:
+	var c := extras_cup()
+	undo_button.visible = page == 1
+	undo_button.disabled = c == null or c.extras_log.is_empty()
 
 
 ## A new empty cup centred on `at`.
@@ -1390,6 +1488,18 @@ func place_pf(p: Portafilter, spot: String) -> void:
 	update_pf(p)
 
 
+## A cup dropped back on the rack or the plastic cup stack goes back there. If it held a drink
+## (or ice) that is poured away first: the cup and everything in it belong to that one drink
+## (Cup.drink, yield, ice, liquid, latte art), so removing it resets exactly that drink and
+## nothing else. Nothing is served or scored; the rack gives out a fresh, empty cup.
+func discard_cup(c: Cup) -> void:
+	var had_drink := not c.drink.is_empty() or c.ice
+	remove_cup(c)
+	if had_drink:
+		Sfx.play("clink", 0.1, -4.0)
+		say("Drink discarded. Cup ready to reuse.")
+
+
 ## `at` = cup centre.
 func drop_cup(c: Cup, at: Vector2) -> void:
 	var under := zones_at(at)
@@ -1422,8 +1532,8 @@ func drop_cup(c: Cup, at: Vector2) -> void:
 				c.sprite.position = drag_start
 				settle_look(c)
 			return
-	if ("rack" in under or "iced_stack" in under) and c.drink.is_empty() and not c.ice:
-		remove_cup(c)
+	if "rack" in under or "iced_stack" in under:
+		discard_cup(c)
 	else:
 		c.sprite.position.y = clampf(c.sprite.position.y, 110.0, 310.0)
 		c.spot = "counter"
@@ -1433,10 +1543,10 @@ func drop_cup(c: Cup, at: Vector2) -> void:
 func drop_pitcher(at: Vector2) -> void:
 	var under := zones_at(at)
 	if "fridge" in under:
-		if milk_state == MilkState.COLD:
+		if milk_heat() == "cold":
 			say("The pitcher is already full of cold milk.")
-		else:  # empty, or old steamed milk poured away (as before): fresh cold milk
-			say("Poured away the old milk and refilled with cold milk." if milk_state == MilkState.STEAMED
+		else:  # empty, or old warm / steamed milk poured away (as before): fresh cold milk
+			say("Poured away the old milk and refilled with cold milk." if milk_state != MilkState.EMPTY
 				else "Cold milk added! Steam it at the wand, or pour it cold for iced drinks.")
 			milk_temp = 5.0
 			milk_foam = 0.0
@@ -1495,7 +1605,7 @@ func update_cup_visual(c: Cup) -> void:
 	for n in c.garnish.get_children():
 		n.queue_free()
 	var top := Vector2(inside.position.x + inside.size.x / 2, inside.position.y)
-	if c.kind == "cup" and c.drink.has("art"):  # latte-art heart once poured, off-centre if poured badly
+	if c.kind == "cup" and c.drink.has("art") and not c.drink.has("art_result"):  # latte-art heart once poured, off-centre if poured badly (none if skipped)
 		var off := Vector2((1.0 - c.drink.art) * 8.0, 0)
 		var heart := Color("#B97F52") if c.drink.get("milk_foam", 0.0) >= CupLiquid.CAPPUCCINO_FOAM else CupLiquid.FOAM  # brown on a foam cap, white on latte
 		for px in [Vector2(-2, 1), Vector2(1, 1), Vector2(-3, 2), Vector2(-1, 2), Vector2(0, 2), Vector2(2, 2), Vector2(-2, 3), Vector2(-1, 3), Vector2(0, 3), Vector2(1, 3), Vector2(-1, 4), Vector2(0, 4)]:
@@ -1560,20 +1670,28 @@ func objective_steps() -> Array[String]:
 
 ## What the player should do next, worked out from the live station state (so it only
 ## moves on after a real, successful action). Keys: id (step), step, total, title,
-## text (one short line for the objective panel), hint (more detail for the Hint button),
-## target (equipment to highlight: see guide_rect; "" = none).
+## text (one short line for the objective panel, no exact measurements: the "hints"
+## assist level), full (the same step spelled out with the recipe's target values: the
+## "full" assist level), hint (more detail for the Hint button), target (equipment to
+## highlight: see guide_rect; "" = none).
 func objective() -> Dictionary:
 	var want_cup: String = recipe.get("cup", "glass")
 	var cup_name: String = CUPS[want_cup].label
+	var cup_place: String = "the stack by the machine" if want_cup == "iced" else \
+		"the %s of the rack" % ("left" if want_cup == "cup" else "right")
+	var t_min: int = int(recipe.get("extraction_time_min_s", 0))
+	var t_max: int = int(recipe.get("extraction_time_max_s", 0))
 	var o := {}
 	for g in groups:
 		if g.state == ShotState.EXTRACTING:
-			o = obj("brew", "Pull the shot", "Tap the portafilter again when the marker is in the green zone (about %d–%d s)." % [recipe.extraction_time_min_s, recipe.extraction_time_max_s],
+			o = obj("brew", "Pull the shot", "Tap the portafilter again when the marker is in the green zone.",
 				"Watch the bar under the cup. Stop at about %d g: too early tastes sour, too late tastes burnt." % recipe.target_yield_g,
-				"group%d" % g.index)
+				"group%d" % g.index,
+				"Tap the portafilter again at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
 	if art_panel.visible:
 		o = obj("art", "Create latte art", "Tap when the pitcher is over the middle of the cup.",
-			"Watch the pitcher swing above the cup and tap as it passes the middle mark. The closer to the middle, the better the pattern.", "")
+			"Watch the pitcher swing above the cup and tap as it passes the middle mark. The closer to the middle, the better the pattern.", "",
+			"Tap once as the swinging pitcher passes the middle mark: the closer, the better.")
 	var c := hint_cup()
 	if not o.is_empty():
 		pass
@@ -1581,82 +1699,122 @@ func objective() -> Dictionary:
 		var p := hint_pf()
 		if p.state == PfState.USED:
 			o = obj("grind", "Empty the portafilter", "Drag the used portafilter onto the black knock box.",
-				"The knock box is the small black box right of the tamping mat. Drop the portafilter on it to knock out the old coffee puck.", "knock")
+				"The knock box is the small black box right of the tamping mat. Drop the portafilter on it to knock out the old coffee puck.", "knock",
+				"The grounds are used: drop the portafilter on the black knock box to empty it.")
 		elif p.dose_g < recipe.dose_g - 1.0:
 			if p.spot != "fork":
 				o = obj("grind", "Grind the coffee", "Drag a portafilter under the grinder spout.",
-					"The grinder is on the far left. Drag a portafilter (one waits on the black mat) under its spout until it snaps in.", "fork")
+					"The grinder is on the far left. Drag a portafilter (one waits on the black mat) under its spout until it snaps in.", "fork",
+					"Drag a portafilter from the black mat under the grinder spout, then grind %d g into it." % recipe.dose_g)
 			else:
-				var text := "Hold the grinder until the scale shows about %d g." % recipe.dose_g
+				var text := "Hold the grinder to fill the portafilter to the recipe dose."
+				var full := "Press and hold the grinder until the scale shows %d g, then let go." % recipe.dose_g
 				if grind != int(recipe.grind_ideal):  # say the grind first: it decides the shot's timing
-					text = "Set the grind to %d with − / +, then hold the grinder until the scale shows about %d g." % [recipe.grind_ideal, recipe.dose_g]
+					text = "Check the grind setting, then hold the grinder to fill the portafilter."
+					full = "Set the grind to %d with − / +, then press and hold the grinder until the scale shows %d g." % [recipe.grind_ideal, recipe.dose_g]
 				o = obj("grind", "Grind the coffee", text,
-					"Press and hold the grinder body. Watch the grams bubble and let go at about %d g. Set the grind with - and + under the grinder: %d gives a %d–%d second shot (coarser runs faster, finer slower)." % [recipe.dose_g, recipe.grind_ideal, recipe.extraction_time_min_s, recipe.extraction_time_max_s], "grinder")
+					"Press and hold the grinder body. Watch the grams bubble and let go at about %d g. Set the grind with - and + under the grinder: %d gives a %d–%d second shot (coarser runs faster, finer slower)." % [recipe.dose_g, recipe.grind_ideal, recipe.extraction_time_min_s, recipe.extraction_time_max_s], "grinder",
+					full)
 		elif p.state != PfState.TAMPED:
 			if p.spot != "mat":
 				o = obj("tamp", "Tamp the coffee", "Move the portafilter onto the black tamping mat.",
-					"The tamping mat is the black rubber mat under the grinder. Drop the portafilter on it.", "mat")
+					"The tamping mat is the black rubber mat under the grinder. Drop the portafilter on it.", "mat",
+					"Drag the filled portafilter onto the black tamping mat, next to the tamper.")
 			else:
 				o = obj("tamp", "Tamp the coffee", "Tap the tamper to press the coffee flat.",
-					"The tamper stands on the mat next to the portafilter. Tap it once to press the grounds flat and even.", "tamper")
+					"The tamper stands on the mat next to the portafilter. Tap it once to press the grounds flat and even.", "tamper",
+					"Tap the tamper once to press the grounds flat, so the water flows evenly.")
 		else:
 			var g := group_of(p)
 			if g == null:
+				var free := 0 if pf_at("group0") == null else 1
 				o = obj("lock", "Attach the portafilter", "Place the portafilter beneath the espresso machine.",
 					"Move the prepared portafilter beneath one of the two group heads (the round heads in the middle of the machine) until it snaps into position.",
-					"group0" if pf_at("group0") == null else "group1")
+					"group%d" % free,
+					"Drag the tamped portafilter under the %s group head until it snaps in." % ["left", "right"][free])
 			elif c == null:
 				var where := "plastic cups stand left of the machine" if want_cup == "iced" else \
 					"%s are on the %s of the rack on top of the machine" % ["latte cups" if want_cup == "cup" else "glasses", "left" if want_cup == "cup" else "right"]
 				o = obj("cup", "Get a cup", "Take a %s and put it under the portafilter." % cup_name,
 					"The %s. Drag one onto the scale under the portafilter you locked in." % where,
-					"iced_stack" if want_cup == "iced" else ("rack_cups" if want_cup == "cup" else "rack_glasses"))
+					"iced_stack" if want_cup == "iced" else ("rack_cups" if want_cup == "cup" else "rack_glasses"),
+					"Take a %s from %s and put it on the %s scale." % [cup_name, cup_place, ["left", "right"][g.index]])
 			elif c.spot != "tray%d" % g.index:
+				var full := "Put the %s on the %s scale, under your portafilter." % [CUPS[c.kind].label, ["left", "right"][g.index]]
+				if c.kind != want_cup:  # not blocked, but the recipe check will mark it down
+					full = "Put the %s on the %s scale. This drink needs a %s." % [CUPS[c.kind].label, ["left", "right"][g.index], cup_name]
 				o = obj("cup", "Get a cup", "Put the %s on the scale under the portafilter." % CUPS[c.kind].label,
-					"Drag the cup onto the steel scale under the group head where your portafilter is.", "tray%d" % g.index)
+					"Drag the cup onto the steel scale under the group head where your portafilter is.", "tray%d" % g.index,
+					full)
 			else:
 				o = obj("brew", "Pull the shot", "Tap the portafilter to start the shot.",
-					"Tap the locked portafilter once to start. A bar appears under the cup: tap again when the marker is in the green zone.", "group%d" % g.index)
+					"Tap the locked portafilter once to start. A bar appears under the cup: tap again when the marker is in the green zone.", "group%d" % g.index,
+					"Tap the portafilter to start. Stop at about %d g, in the green zone (%d–%d s)." % [recipe.target_yield_g, t_min, t_max])
 	elif recipe.get("ice", false) and not c.ice:
 		o = obj("ice", "Add ice", "Drop the cup on the ICE bin.",
-			"The ice bin is the steel tray at the bottom of the fridge, under the COLD MILK door. Drag the cup onto it.", "ice")
+			"The ice bin is the steel tray at the bottom of the fridge, under the COLD MILK door. Drag the cup onto it.", "ice",
+			"Drag the cup onto the ICE bin under the fridge. It comes back with ice.")
 	elif recipe.has("milk") and c.drink.milk_temp < 0.0:
 		var iced: bool = recipe.get("ice", false)
 		if milk_state == MilkState.EMPTY:
 			o = obj("fill", "Fill the pitcher", "Find the COLD MILK fridge on the right side of the counter.",
-				"The cold milk source is on the right side of the counter, directly above the ice station. Move your empty pitcher there.", "fridge")
+				"The cold milk source is on the right side of the counter, directly above the ice station. Move your empty pitcher there.", "fridge",
+				"Drag the empty pitcher onto the COLD MILK door to fill it. %s" % (
+					"Iced drinks use it cold." if iced else "Then steam it to %d–%d°C." % [recipe.milk.temp_min, recipe.milk.temp_max]))
+		elif iced and milk_heat() != "cold":  # warmed or steamed milk would melt the ice: start again
+			o = obj("fill", "Fill the pitcher", "This milk isn't cold. Refill the pitcher at the COLD MILK fridge.",
+				"Iced drinks need milk straight from the fridge. Drag the pitcher onto the COLD MILK door to pour the warm milk away and refill it.", "fridge",
+				"Drag the pitcher onto the COLD MILK door: it pours the %d°C milk away and refills it cold." % roundi(milk_temp))
 		elif iced or milk_state == MilkState.STEAMED:
 			o = obj("pour", "Pour the milk", "Cold milk added! Pour it into the cup." if iced else "Milk is ready! Pour it into the cup.",
-				"Drag the pitcher onto the cup. %s" % ("Iced drinks use cold milk, so no steaming." if iced else "Then tap over the middle of the cup for latte art."), "cup")
+				"Drag the pitcher onto the cup. %s" % ("Iced drinks use cold milk, so no steaming." if iced else "Then tap over the middle of the cup for latte art."), "cup",
+				"Drag the pitcher onto the cup to pour the cold milk. Iced drinks are not steamed." if iced else
+				"Drag the pitcher onto the cup to pour the %d°C milk%s." % [roundi(milk_temp), ", then tap for latte art" if c.kind == "cup" else ""])
 		else:
-			o = obj("steam", "Steam the milk", "Cold milk added! Move the pitcher to the steam wand.",
-				"Drag the pitcher under the steam wand (the metal arm right of the machine). Hold on the pitcher to steam: low adds froth, high only heats. Aim for %d–%d°C, then press Done." % [recipe.milk.temp_min, recipe.milk.temp_max], "steam")
+			var full := "Drag the pitcher under the steam wand, hold to heat it to %d–%d°C, then press Done." % [recipe.milk.temp_min, recipe.milk.temp_max]
+			if foam_range().x >= CupLiquid.CAPPUCCINO_FOAM:  # cappuccino: much more froth
+				full = "Steam at the wand to %d–%d°C, holding the pitcher low for longer: lots of froth." % [recipe.milk.temp_min, recipe.milk.temp_max]
+			var warm := milk_heat() == "warm"  # steamed a little, but stopped under STEAMED_MIN_C
+			if warm:
+				full = "The milk is only %d°C. Steam it again at the wand to %d–%d°C, then press Done." % [roundi(milk_temp), recipe.milk.temp_min, recipe.milk.temp_max]
+			o = obj("steam", "Steam the milk", "The milk is only warm. Steam it more at the wand." if warm else "Cold milk added! Move the pitcher to the steam wand.",
+				"Drag the pitcher under the steam wand (the metal arm right of the machine). Hold on the pitcher to steam: low adds froth, high only heats. Aim for %d–%d°C, then press Done." % [recipe.milk.temp_min, recipe.milk.temp_max], "steam",
+				full)
 	else:
-		var need := []
+		var need := []  # what is still missing, by name (hints)
+		var need_full := []  # with amounts and what is left (full)
 		var first := ""
 		for s in recipe.get("syrups", {}):
-			if int(c.drink.syrups.get(s, 0)) < int(recipe.syrups[s]):
-				need.append("%d pumps of %s" % [recipe.syrups[s], s.replace("_", " ")])
+			var have := int(c.drink.syrups.get(s, 0))
+			var want := int(recipe.syrups[s])
+			if have < want:
+				var syrup: String = s.replace("_", " ")
+				need.append(syrup)
+				need_full.append("%d pump%s of %s%s" % [want, "" if want == 1 else "s", syrup, "" if have == 0 else " (%d more)" % (want - have)])
 				first = "syrup:" + s if first == "" else first
 		for t in recipe.get("toppings", []):
 			if not t in c.drink.toppings:
 				need.append(t.replace("_", " "))
+				need_full.append(t.replace("_", " "))
 				first = "topping:" + t if first == "" else first
 		if not need.is_empty():
 			o = obj("extras", "Add the extras", ("Tap 'Toppings >' and add: %s." if page == 0 else "Add: %s.") % ", ".join(need),
 				"Syrups and toppings are on the topping page. Make sure the cup is on a mat there, then tap each bottle once per pump and each container once.",
-				"toppings_button" if page == 0 else first)
+				"toppings_button" if page == 0 else first,
+				("Tap 'Toppings >', then add %s." if page == 0 else "One tap per pump or topping: %s.") % ", ".join(need_full))
 		else:
 			o = obj("serve", "Serve the drink", "Serve the completed drink to the customer.",
-				"Drag the finished drink into the dashed SERVE area.", "serve" if page == 0 else "serve2")
+				"Drag the finished drink into the dashed SERVE area.", "serve" if page == 0 else "serve2",
+				"The drink is complete. Drag it into the dashed SERVE box.")
 	var steps := objective_steps()
 	o.step = steps.find(o.id) + 1
 	o.total = steps.size()
 	return o
 
 
-func obj(id: String, title: String, text: String, hint: String, target: String) -> Dictionary:
-	return {"id": id, "title": title, "text": text, "hint": hint, "target": target}
+## `full` = the detailed line for the "full" assist level ("" = same as `text`).
+func obj(id: String, title: String, text: String, hint: String, target: String, full := "") -> Dictionary:
+	return {"id": id, "title": title, "text": text, "full": full if full != "" else text, "hint": hint, "target": target}
 
 
 ## Kept for older callers: the detailed hint for the current objective.
@@ -1696,7 +1854,8 @@ func return_pitcher() -> void:
 
 ## A soft pulsing outline and a small bobbing arrow on the equipment for the current
 ## objective (CafeShift sets guide_on per order: off for expert orders and for the parts
-## of a vague order that would give the drink away).
+## of a vague order that would give the drink away; guide_strong: the arrow only on
+## "full" assist orders, "hints" gets the outline alone).
 func build_guide() -> void:
 	guide_box = Panel.new()
 	var s := StyleBoxFlat.new()
@@ -1775,7 +1934,7 @@ func update_guide() -> void:
 	var r := guide_rect(guide_target) if guide_target != "" else Rect2()
 	var on := r.size != Vector2.ZERO and not steam_panel.visible and not art_panel.visible
 	guide_box.visible = on
-	guide_arrow.visible = on
+	guide_arrow.visible = on and guide_strong
 	if not on:
 		return
 	var pulse := 0.55 + 0.45 * sin(hover_t * 4.0)

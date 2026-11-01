@@ -303,17 +303,21 @@ func advance() -> void:
 		after_dialogue.call()
 
 
-## Mentor guidance at the bar depends on the order's assist level:
-## full = always shows the next suggested action, hints = on request, none = nothing.
-## The objective panel and equipment highlight follow the station (station.objective(),
-## worked out from the live state, so they only move on after a successful action).
-## Assist level per order: "full" and "hints" show the panel + highlight + Hint button;
-## "none" (expert orders) shows nothing. Vague orders hide anything that would reveal
-## which drink they meant until the player has worked it out.
+## Mentor guidance at the bar depends on the order's assist level (data: "assist"):
+##  "full"  = the objective panel spells the step out with the recipe's target values
+##            (objective().full), the equipment gets the outline and the bobbing arrow;
+##  "hints" = a short line without exact measurements (objective().text), the outline
+##            only; the numbers are one tap away on the Hint button;
+##  "none"  = expert orders: no panel, highlight or Hint button.
+## In every level the feedback line (show_feedback) still says what just happened or why
+## an action can't go ahead. The panel and highlight follow station.objective(), worked
+## out from the live state, so they only move on after a successful action. Vague orders
+## hide anything that would reveal which drink they meant until it is served.
 func refresh_hint() -> void:
 	if step != Step.BAR:
 		objective_panel.hide()
 		return
+	var full: bool = current_order().assist == "full"
 	var guided: bool = current_order().assist != "none"
 	hint_button.visible = guided
 	objective_panel.visible = (guided or feedback_on) and not station.art_panel.visible  # latte art is a modal: keep it clear
@@ -329,17 +333,19 @@ func refresh_hint() -> void:
 		station.refresh_guide()
 		return
 	var o := station.objective()
+	var line: String = o.full if full else o.text
 	var secret: bool = is_vague() and not o.id in ["grind", "tamp", "lock", "brew"]
 	if secret:  # don't give away the drink
 		o.title = "Make what they described"
-		o.text = "Work out their drink, then make it. The Recipe Book can help."
+		line = "Work out their drink, then make it. The Recipe Book can help."
 	station.guide_on = not secret
+	station.guide_strong = full
 	station.refresh_guide()
 	var title: String = "Step %d of %d: %s" % [o.step, o.total, o.title] if not is_vague() else "Step %d: %s" % [o.step, o.title]
-	if title != objective_title.text or o.text != objective_text.text:
+	if title != objective_title.text or line != objective_text.text:
 		objective_hint.hide()  # a new objective: the old hint no longer applies
 	objective_title.text = title
-	objective_text.text = o.text
+	objective_text.text = line
 
 
 ## The Hint button: more detail for the current objective, or for a vague order only a

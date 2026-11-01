@@ -5,6 +5,9 @@ extends PanelContainer
 ## Drawn as pixel art: an 80x70-cell image scaled x6 (nearest), cup seen from above on its
 ## saucer. The pour builds the pattern where it landed: a full rosetta with a heart for a
 ## great pour, a smaller lopsided one for a good pour, an uneven blob for a poor one.
+## It always ends exactly once per start(): the pour (after the pattern shows), the Skip
+## button, or the TIMEOUT_S timeout. Skipped or timed out before pouring = no pattern, scored
+## as the lowest pour (0.0); `result` says which ("" = poured). Game pause stops the clock.
 
 signal finished(score: float)
 
@@ -17,6 +20,7 @@ const CUP_R := 25.0  # = R / P
 const COFFEE_R := 20.0
 const REVEAL_S := 0.8  # the pattern forms while pouring
 const HOLD_S := 1.4  # then it stays a moment before the panel closes
+const TIMEOUT_S := 30.0  # no pour by then: it closes (the pitcher passes the middle every ~1.3 s)
 
 const OUT := Color("#5A3F30")
 const SAUCER := Color("#EFE6DB")
@@ -44,6 +48,10 @@ var score := 0.0
 var since_pour := 0.0
 var tex: ImageTexture
 var img: Image
+var skip_button: Button
+var done := true  # this round has ended (finished was emitted); start() opens a new one
+var session := 0  # counts rounds, so a pour's delayed finish can't end a later round
+var result := ""  # how the round ended: "" (poured), "skipped" or "timeout"
 
 
 func _ready() -> void:
@@ -65,6 +73,18 @@ func _ready() -> void:
 			pour())
 	canvas.draw.connect(draw_canvas)
 	col.add_child(canvas)
+	var foot := HBoxContainer.new()  # a small Skip under the cup, right-aligned (a way out, not the main action)
+	col.add_child(foot)
+	var gap := Control.new()
+	gap.size_flags_horizontal = SIZE_EXPAND_FILL
+	foot.add_child(gap)
+	skip_button = Button.new()
+	skip_button.text = "Skip"
+	skip_button.tooltip_text = "Skip the latte art (scored as the plainest pour)"
+	skip_button.custom_minimum_size = Vector2(110, 40)
+	skip_button.add_theme_font_size_override("font_size", 18)
+	skip_button.pressed.connect(skip)
+	foot.add_child(skip_button)
 	img = Image.create(GRID.x, GRID.y, false, Image.FORMAT_RGBA8)
 	hide()
 
@@ -73,6 +93,10 @@ func start() -> void:
 	t = 0.0
 	poured = false
 	since_pour = 0.0
+	session += 1
+	done = false
+	result = ""
+	skip_button.disabled = false
 	paint(0.0)
 	show()
 
@@ -85,7 +109,10 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 	if not poured:
-		t += delta
+		t += delta  # _process stops while the game is paused, so the timeout does too
+		if t >= TIMEOUT_S:
+			end_without_pour("timeout")
+			return
 	elif since_pour < REVEAL_S:
 		since_pour += delta
 		paint(minf(since_pour / REVEAL_S, 1.0))
@@ -93,17 +120,43 @@ func _process(delta: float) -> void:
 
 
 func pour() -> void:
-	if poured:
+	if poured or done:
 		return
 	poured = true
 	pour_x = swing_x()
 	score = clampf(1.0 - absf(pour_x) / (R * 0.8), 0.0, 1.0)
-	await get_tree().create_timer(HOLD_S).timeout
-	if poured and visible:
+	var round_id := session
+	await get_tree().create_timer(HOLD_S, false).timeout  # false: waits out a game pause
+	if round_id == session and not done:
 		finish(score)
 
 
+## The Skip button: before pouring it ends the round with no pattern; after pouring it only
+## skips the wait while the pattern shows, keeping the real pour.
+func skip() -> void:
+	if done:
+		return
+	if poured:
+		finish(score)
+	else:
+		end_without_pour("skipped")
+
+
+## Skipped or timed out before any pour: the lowest pour score (0.0), as pouring at the very
+## edge of the swing gives, so skipping is never better than trying.
+func end_without_pour(why: String) -> void:
+	if done:
+		return
+	result = why
+	finish(0.0)
+
+
+## Ends the round (once: later calls are ignored until the next start()).
 func finish(final_score: float) -> void:
+	if done:
+		return
+	done = true
+	skip_button.disabled = true
 	score = final_score
 	hide()
 	finished.emit(final_score)
