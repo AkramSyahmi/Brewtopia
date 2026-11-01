@@ -22,7 +22,7 @@ const PAPER := Color("#FBF4EA")
 const GOLD := Color("#F2C14E")  # speaker names
 const HUD_ART := "res://assets/ui/hud/%s.png"  # made by tools/make_menu_art.gd
 const MENU_ART := "res://assets/ui/main_menu/%s.png"
-const TICKET_W := 256.0
+const TICKET_W := 220.0  # left edge at x 1048: clear of the customer's head at the counter (head_rect ends ~1055; the drawn head ~1035)
 const OBJECTIVE_W := 420.0  # CURRENT OBJECTIVE panel, top left under the HUD
 const TALK_SIZE := Vector2(560, 128)  # speech bubble: width, and its height with a short line
 const TALK_TEXT_W := 314.0  # the line's column (cup on the left, Next on the right)
@@ -36,6 +36,11 @@ const TALK_PAGE_LINES := 3  # a longer line is shown in pages (Next turns the pa
 enum Step { DIALOGUE, BAR, RESULT, SUMMARY }
 
 var shift: Dictionary
+## The day being played. The save is written only when a day ends (the summary), with save.day
+## already moved to the next day, so quitting mid-day leaves the save exactly as the day began
+## (no money, XP, friendship, story beats or recipes_seen from the unfinished day), and quitting
+## on the summary keeps the finished day without paying it twice.
+var shift_day := 1
 var save: Dictionary
 var stories: Dictionary
 var order_index := 0
@@ -103,6 +108,7 @@ var objective_collapsed := false
 var feedback_on := false
 var feedback_id := 0  # latest feedback message (older fade timers leave it alone)
 var modal_dim: ColorRect  # dark backdrop behind the recipe book / shop / menu; blocks the game
+var quit_note: Label  # Menu: "Leaving now restarts today." (hidden on the summary)
 var settings: PanelContainer  # the Menu window (music volume, mute, sound, main menu); pauses the game
 var bubble_style: StyleBoxTexture
 
@@ -111,7 +117,8 @@ var bubble_style: StyleBoxTexture
 func _ready() -> void:
 	save = SaveGame.load_save()
 	stories = EspressoModel.load_recipe(STORIES_PATH)
-	shift = shift_for_day(save.day)
+	shift_day = save.day
+	shift = shift_for_day(shift_day)
 	mouse_filter = MOUSE_FILTER_IGNORE  # let clicks reach the bar's drag and drop
 	bar = CounterScreen.new()
 	add_child(bar)
@@ -197,8 +204,7 @@ func start_order(i: int) -> void:
 		if seen != "" and not seen in save.recipes_seen:
 			save.recipes_seen.append(seen)
 	var who: String = current_order().customer
-	var intro: Array = Friends.take_beat(save, who, stories) + current_order().intro  # story first
-	SaveGame.write(save)
+	var intro: Array = Friends.take_beat(save, who, stories) + current_order().intro  # story first (saved at the day's end)
 	Sfx.play("bell", 0.0)
 	await bar.customer_enter(look_of(who)).finished
 	bar.emote(bar.customer, "!")
@@ -452,6 +458,7 @@ func show_step(new_step: Step) -> void:
 			var daily := EspressoModel.load_recipe(DAILY_PATH)
 			var new_recipes := DayPlan.unlocked(daily, SaveGame.level(save)).filter(
 				func(id): return not id in DayPlan.unlocked(daily, level_before))
+			save.day = shift_day + 1  # the day is done: everything from it is saved at once, with the next day
 			SaveGame.write(save)
 			refresh_hud()
 			bar.hide_served_cup()
@@ -459,7 +466,7 @@ func show_step(new_step: Step) -> void:
 			bar.emote(bar.mentor, "*", 3.0)
 			bar.hop(bar.mentor)
 			title.text = "DAY %d COMPLETE!   Orders %d · Wage RM%d · Tips RM%d · XP +%d" % [
-				save.day, s.orders, s.wage_rm, tips_rm, s.xp]
+				shift_day, s.orders, s.wage_rm, tips_rm, s.xp]
 			readout.text = "Average %d" % s.average
 			Sfx.play("coins", 0.0)
 			if SaveGame.level(save) > level_before:
@@ -480,9 +487,8 @@ func show_step(new_step: Step) -> void:
 
 
 func start_next_day() -> void:
-	save.day += 1
-	SaveGame.write(save)
-	shift = shift_for_day(save.day)
+	shift_day = save.day  # already moved on and saved by the summary
+	shift = shift_for_day(shift_day)
 	scores.clear()
 	services.clear()
 	bar.set_mentor_happy(false)
@@ -592,8 +598,7 @@ func on_served(drink: Dictionary) -> void:
 		scores.append(r.score)
 		var hearts_before := Friends.hearts(save, who, stories)
 		var hearts := Friends.reward(save, who, r.grade, stories)
-		services.append(patience * Friends.tip_multiplier(save, who, stories))  # friends tip more
-		SaveGame.write(save)
+		services.append(patience * Friends.tip_multiplier(save, who, stories))  # friends tip more (saved at the day's end)
 		refresh_hud()
 		var great: bool = r.grade in ["Perfect Brew", "Great Cup"]
 		bar.set_happy(great)
@@ -680,7 +685,7 @@ func refresh_hud() -> void:
 	xp_bar.value = SaveGame.xp_progress(save) * 100.0
 	var minutes := OPEN_MINUTES + order_index * MINUTES_PER_ORDER
 	var h := int(minutes / 60.0)
-	clock_label.text = "Day %d · %d:%02d %s" % [save.day, (h - 1) % 12 + 1, minutes % 60, "AM" if h < 12 else "PM"]
+	clock_label.text = "Day %d · %d:%02d %s" % [shift_day, (h - 1) % 12 + 1, minutes % 60, "AM" if h < 12 else "PM"]
 	clock_icon.texture = load(HUD_ART % ("icon_sun" if h < 18 else "icon_moon"))
 	if scores.is_empty():
 		mood_label.text = "--%"
@@ -907,20 +912,16 @@ func build_ui() -> void:
 	close.tooltip_text = "Close the order note (tap ORDER to open it again)"
 	close.pressed.connect(set_order_note.bind(false))
 	head.add_child(close)
-	var body := hrow(4)  # friendship + the order, with the drink cup on the right
-	paper.add_child(body)
-	var lines_col := VBoxContainer.new()
-	lines_col.size_flags_horizontal = SIZE_EXPAND_FILL
-	lines_col.add_theme_constant_override("separation", 2)
+	var lines_col := VBoxContainer.new()  # friendship + the order, the full slip width (no cup picture
+	lines_col.add_theme_constant_override("separation", 2)  # beside it: the narrower slip keeps the text column wide)
 	lines_col.mouse_filter = MOUSE_FILTER_IGNORE
-	body.add_child(lines_col)
-	slip_friend = label(lines_col, 19, Color("#5A3414"))
-	slip_order = label(lines_col, 19, ESPRESSO)
+	paper.add_child(lines_col)
+	slip_friend = PixelUI.number_label(label(lines_col, 19, Color("#5A3414")), 19)  # "Friend 0/3", "+ 2 gula melaka": Silkscreen digits
+	slip_order = PixelUI.number_label(label(lines_col, 19, ESPRESSO), 19)
 	slip_order.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	pic(body, "icon_cup_small").size_flags_vertical = SIZE_SHRINK_BEGIN
 	var foot := hrow(4)
 	paper.add_child(foot)
-	slip_hint = label(foot, 16, Color("#6A4A30"))
+	slip_hint = PixelUI.number_label(label(foot, 16, Color("#6A4A30")), 16)
 	slip_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	slip_hint.size_flags_horizontal = SIZE_EXPAND_FILL
 	pic(foot, "icon_bean").size_flags_vertical = SIZE_SHRINK_END
@@ -993,7 +994,7 @@ func build_ui() -> void:
 	speaker.add_theme_font_override("font", bold)
 	speaker.clip_text = true  # one line: a very long name is cut with an ellipsis, never widens the bubble
 	speaker.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	tip = label(talk, TALK_TEXT_PX, CREAM)
+	tip = PixelUI.number_label(label(talk, TALK_TEXT_PX, CREAM), TALK_TEXT_PX)  # digits read as digits; paginate() measures with this font
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	choice_box = VBoxContainer.new()  # the player's answers, inside the bubble
 	choice_box.add_theme_constant_override("separation", 8)
@@ -1073,11 +1074,13 @@ func build_objective_panel(parent: Control) -> void:
 	objective_toggle.tooltip_text = "Hide the instruction"
 	objective_toggle.pressed.connect(func(): set_objective_collapsed(not objective_collapsed))
 	head.add_child(objective_toggle)
-	objective_title = label(col, 20, CREAM)
-	objective_title.add_theme_font_override("font", bold)
-	objective_text = label(col, 17, Color("#E9DCC8"))
-	objective_hint = label(col, 16, Color("#FFE066"))
-	objective_feedback = label(col, 16, Color("#A8E07A"))
+	# numbers() font (Silkscreen digits, Pixelify letters): "Step 5", "18 g", "60–65°C" read
+	# as numbers, not "Step S". Text at 16 (not 17) keeps every full-assist line to 2 lines
+	# with the wider digits and keeps them crisp (steps of 8).
+	objective_title = PixelUI.number_label(label(col, 20, CREAM), 20, 700)
+	objective_text = PixelUI.number_label(label(col, 16, Color("#E9DCC8")), 16)
+	objective_hint = PixelUI.number_label(label(col, 16, Color("#FFE066")), 16)
+	objective_feedback = PixelUI.number_label(label(col, 16, Color("#A8E07A")), 16)
 	for l: Label in [objective_title, objective_text, objective_hint, objective_feedback]:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(OBJECTIVE_W - 34, 0)  # fixed wrap width: exact height from the first frame
@@ -1167,13 +1170,17 @@ func build_settings(parent: Control) -> void:
 	var main_menu := Button.new()
 	main_menu.text = "Main menu"
 	main_menu.custom_minimum_size = Vector2(240, 60)
-	main_menu.pressed.connect(func():  # the save keeps the day; that day restarts from its first order
+	main_menu.pressed.connect(func():  # the save is as the day began; that day restarts from its first order
 		get_tree().paused = false
 		get_tree().change_scene_to_file("res://scenes/ui/title_screen.tscn"))
 	buttons.add_child(main_menu)
+	quit_note = label(col, 20, Color("#8A4A26"))  # shown during a day (open_settings), not on the summary
+	quit_note.text = "Leaving now restarts today."
+	quit_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func open_settings() -> void:
+	quit_note.visible = step != Step.SUMMARY  # after the summary the day is already saved
 	settings.show()
 	settings.reset_size()
 	settings.position = (Vector2(1280, 720) - settings.size) / 2.0
@@ -1232,5 +1239,8 @@ func show_station() -> void:
 
 
 func _process(delta: float) -> void:
-	if waiting:  # a two-drink order gets twice the time
+	# Patience holds while the Recipe Book or the latte-art popup is open: reading the book is how
+	# vague orders are meant to be solved, and latte art is a timed minigame of its own. (The Menu
+	# pauses the whole game, so it stops here too.) A two-drink order gets twice the time.
+	if waiting and not book.visible and not station.art_panel.visible:
 		patience = maxf(patience - delta / (float(shift.get("patience_s", PATIENCE_S)) * drinks_needed()), 0.0)

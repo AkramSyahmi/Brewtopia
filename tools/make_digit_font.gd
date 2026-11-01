@@ -8,7 +8,9 @@ extends SceneTree
 
 const SRC := "res://assets/fonts/Silkscreen-Bold.ttf"
 const DST := "res://assets/fonts/BrewtopiaDigits.ttf"
-const CHARS := "0123456789.:/"  # (its % reads like a Z, so % stays Pixelify)
+## Not mapped (they stay Pixelify): % (reads like a Z), . and : (Silkscreen Bold's full stop is a
+## 2x1 bar, so sentences read "please_"), and 4 (a solid block: "ORDER 4/4" looked like "¥/¥").
+const CHARS := "012356789/"
 
 
 func _initialize() -> void:

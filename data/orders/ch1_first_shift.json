@@ -37,7 +37,8 @@
       "intro": [
         ["CUSTOMER", "Morning. A latte, please. Long night at the office."],
         ["CHOICE", ["Coming right up!", "How do I make a latte?"]],
-        ["MENTOR", "A latte is espresso in a cup with steamed milk. Fill the pitcher at the fridge, steam it to 60 to 65 degrees, then pour. Check the recipe book if you forget."]
+        ["MENTOR", "A latte is espresso in a cup with steamed milk. Fill the pitcher at the fridge, steam it to 60 to 65 degrees, then pour. Check the recipe book if you forget."],
+        ["MENTOR", "After you pour comes latte art: tap as the pitcher passes the middle. Not ready for it? Tap Skip, or it skips itself after 30 seconds."]
       ]
     },
     {
@@ -53,7 +54,8 @@
       "intro": [
         ["COFFEE_ENTHUSIAST", "Double espresso, but make it kaw. Stronger, shorter shot."],
         ["CHOICE", ["What does kaw mean?", "Kaw, got it!"]],
-        ["MENTOR", "Kaw means a stronger cup. Same dose, but stop the shot earlier, around 30 g. You've got this."]
+        ["MENTOR", "Kaw means a stronger cup. Same dose, but stop the shot earlier, around 30 g. You've got this."],
+        ["MENTOR", "If a drink goes wrong, drop it back on the rack (or the iced cup stack). It pours the drink away so you can start again."]
       ]
     },
     {
@@ -63,7 +65,8 @@
       "intro": [
         ["MAKCIK", "Assalamualaikum, adik! One Gula Melaka Latte, please. Not too sweet, ya."],
         ["CHOICE", ["Waalaikumussalam, Makcik!", "One Gula Melaka Latte, coming up!"]],
-        ["MENTOR", "Make a latte first, then use the topping station: 2 pumps of gula melaka and a little cinnamon on top."]
+        ["MENTOR", "Make a latte first, then use the topping station: 2 pumps of gula melaka and a little cinnamon on top."],
+        ["MENTOR", "One pump too many? The Undo button on the topping station takes back the last pump or topping."]
       ]
     }
   ],

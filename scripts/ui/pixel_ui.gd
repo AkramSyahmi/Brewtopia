@@ -3,7 +3,10 @@ class_name PixelUI
 ## 9-slice frames in res://assets/ui/ (painted by tools/make_menu_art.gd at 3 screen px per
 ## art pixel, so they are used 1:1). One place for the look of every panel and label.
 
-const FONT := "res://assets/fonts/PixelifySans.ttf"
+## Pixelify Sans with wider C/c openings (they read as O/o), a square-topped 5 (it read as S)
+## and no fi/fl/ff ligatures: made from
+## PixelifySans.ttf by tools/patch_pixelify.py.
+const FONT := "res://assets/fonts/PixelifySansBrew.ttf"
 ## Numbers that must read at a glance (the result score): Silkscreen Bold (SIL OFL 1.1, see
 ## assets/fonts/Silkscreen-OFL.txt). Its 5 is not an S, its 0 not an O. Imported with
 ## antialiasing, hinting and subpixel positioning off; use sizes in steps of 8 (40 = 5 px

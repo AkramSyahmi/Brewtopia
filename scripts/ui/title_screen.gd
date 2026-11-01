@@ -12,7 +12,7 @@ const GAME := "res://scenes/cafe/cafe_shift.tscn"
 ## Shown by the Credits button here and at the end of the story (CafeShift.show_credits).
 const CREDITS := "BREWTOPIA\nUXHMAC 2026 entry\n\nGame design, story and code: our team\nEngine: Godot 4\n3D characters and furniture: Kenney (kenney.nl), CC0\nFonts: Pixelify Sans and Silkscreen (SIL Open Font License)\nSound effects and music: original, made for this game\n\nTerima kasih for playing!"
 const LOGO := "res://assets/art/ui/brewtopia_logo.png"
-const FONT := "res://assets/fonts/PixelifySans.ttf"  # SIL OFL 1.1, see PixelifySans-OFL.txt
+const FONT := PixelUI.FONT  # Pixelify Sans Brew (SIL OFL 1.1, see PixelifySans-OFL.txt)
 const UI := "res://assets/ui/main_menu/%s.png"
 const LOGO_W := 640.0  # on screen
 const LOGO_TOP := Rect2(0, 120, 2172, 410)  # logo image px: the lettering

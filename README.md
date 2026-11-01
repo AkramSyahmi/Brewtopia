@@ -95,7 +95,8 @@ plays a whole Gula Melaka Latte with real mouse events, from grinding to the res
 
 - Game design, story, code and pixel art: the Brewtopia team.
 - 3D characters and furniture: [Kenney](https://kenney.nl) (CC0).
-- Fonts: Pixelify Sans and Silkscreen (SIL Open Font License, licences in `assets/fonts/`).
+- Fonts: Pixelify Sans and Silkscreen (SIL Open Font License, licences in `assets/fonts/`). The game uses a modified
+  Pixelify Sans ("Pixelify Sans Brew": wider C and c openings, a square-topped 5, no ligatures, made by `tools/patch_pixelify.py`), also under the OFL.
 - Sound effects: generated for this game (`tools/gen_audio.gd`).
 - Background music: "Steam Over Ceramic" and "Sunshine on the Saucer".
 - Engine: [Godot](https://godotengine.org/).

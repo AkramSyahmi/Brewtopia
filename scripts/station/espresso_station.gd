@@ -1323,7 +1323,11 @@ func add_syrup(s: String) -> void:
 		return
 	c.drink.syrups[s] = int(c.drink.syrups.get(s, 0)) + 1
 	c.extras_log.append(["syrup", s])
-	say("1 pump of %s (%d total)." % [s.replace("_", " "), c.drink.syrups[s]])
+	var want := int(recipe.get("syrups", {}).get(s, 0))
+	if guide_on and c.drink.syrups[s] > want:  # one too many: point at Undo (guided orders only, so no spoilers; one panel line)
+		say(("Too many pumps of %s. Tap Undo." if want > 0 else "No %s in this recipe. Tap Undo.") % s.replace("_", " "))
+	else:
+		say("1 pump of %s (%d total)." % [s.replace("_", " "), c.drink.syrups[s]])
 	Sfx.play("pump", 0.1)
 	update_cup_visual(c)
 	changed.emit()
@@ -1338,6 +1342,8 @@ func add_topping(t: String) -> void:
 		return
 	c.drink.toppings.append(t)
 	c.extras_log.append(["topping", t])
+	if guide_on and not t in recipe.get("toppings", []):  # wrong topping: point at Undo (guided orders only)
+		say("No %s in this recipe. Tap Undo." % t.replace("_", " "))
 	Sfx.play("shake", 0.1)
 	update_cup_visual(c)
 	changed.emit()

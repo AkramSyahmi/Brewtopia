@@ -143,7 +143,7 @@ Also on 2026-11-01:
 Not tested by playing: full later days, friendship arcs and story beats in play, the finale, saving across real sessions,
 and Android builds and touch input.
 
-**Bug-fix branch `feature/adeeb-brewtopia-work` (uncommitted, 2026-11-01):** six fixes, all in section 4.1 (assist
+**Bug-fix branch `feature/adeeb-brewtopia-work` (2026-11-01; fixes 1–6 committed in `3063dd4`):** six fixes, all in section 4.1 (assist
 levels, Mocha latte art, milk temperature, latte-art Skip and timeout, drink discard, syrup/topping Undo). Phase 7 regression:
 - all scripts parse; unit tests pass;
 - `regression_flow.gd` passes at three window sizes;
@@ -196,17 +196,31 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
    and iced drinks with warm or steamed milk point back to the fridge. Scoring was already using the real temperature and is
    unchanged.
 4. **Moon icon unreachable:** the clock is 8:00 + 20 min × order index; max 8 orders → 10:20 AM, and the moon shows from 6 PM.
-5. **Ambiguous text:** Pixelify body text shows 5 as "S" and C as "O" (`docs/screenshots/espresso_bar.png`: "Step S of 11",
-   "about 2S-30 s"; ticket "MAKOIK"; buttons "Reoipes", "Oontinue"). Only labels using `PixelUI.number_label()` get the
-   clear digits.
-6. **Ticket over the customer:** the order ticket (top-right) covers the customer's head at the counter (`cafe.png`, `result.png`).
-7. **Mid-day quit:** the day restarts from order 1, but friendship points and consumed story beats are already saved; money
-   and XP aren't. Because `recipes_seen` was updated, `DayPlan` may build a different day on replay.
-8. **Patience** keeps draining while the Recipe Book is open during an order (only the Menu pauses), isn't reset by
-   "Make it again", and reaching 0 has no effect beyond 0 tips.
-9. ~~**No undo or discard:**~~ Fixed on `feature/adeeb-brewtopia-work` (uncommitted): an Undo button for syrups and
-   toppings, discarding a drink by dropping its cup back on the rack or cup stack, and a Skip button plus 30 s timeout for
-   latte art.
+5. **Ambiguous text (fixed on feature/adeeb-brewtopia-work):** Pixelify's own glyphs showed 5 as "S", C as "O" and
+   "fi" as "A" (`docs/screenshots/espresso_bar.png`: "Step S of 11", "about 2S-30 s", "portaAlter"; ticket "MAKOIK"; buttons
+   "Reoipes", "Oontinue").
+   - C and c: their openings were under one design pixel tall, and the 600/700 weights close them further. The game now
+     uses `PixelifySansBrew.ttf`, made by `tools/patch_pixelify.py` (fontTools): C's opening grows one design pixel each
+     way, c loses its bottom hook, 5 gets a square top-left corner and a flat top bar (it was drawn like S), and the `liga` feature (fi/fl/ff ligatures) is removed. The original `PixelifySans.ttf` is kept as the source.
+   - Digits: the objective panel, ticket and dialogue use `PixelUI.number_label()`, like the HUD and result.
+     `BrewtopiaDigits` no longer maps `.`, `:` (Silkscreen Bold's full stop is a bar: "please_") or `4` (a solid block).
+6. **Ticket over the customer (fixed on feature/adeeb-brewtopia-work):** the ticket was 256 px wide with its left edge at
+   x 1012, over the head (`head_rect` x 874–1055). It's now `TICKET_W` 220 (left edge 1048). The cup picture beside the
+   order lines was dropped, so the text column grew from about 172 to 180 px. Long names ("OFFICE WORKER") wrap to 2 lines.
+7. ~~**Mid-day quit:**~~ Fixed on feature/adeeb-brewtopia-work (uncommitted). Before: friendship and story beats were saved
+   per order but money and XP only at the summary, and the day number only on "Next day", so a mid-day quit kept
+   friendship (farmable by replaying), a summary quit paid the day twice, and the replayed day could differ (`recipes_seen`
+   had grown). Now `CafeShift` writes the save once, at the summary, with `save.day` already moved to the next day
+   (`shift_day` holds the day being played). Quitting mid-day restarts the day exactly as it began; quitting on the summary
+   keeps it. No save keys changed. Trade-off: if the app is killed mid-day, that day's friendship is lost along with its
+   money and XP.
+8. **Patience** isn't reset by "Make it again", and reaching 0 has no effect beyond 0 tips. (Fixed on
+   feature/adeeb-brewtopia-work: it no longer drains while the Recipe Book or the latte-art popup is open.)
+9. ~~**No undo or discard:**~~ Fixed on `feature/adeeb-brewtopia-work` (committed in `3063dd4`): an Undo button for
+   syrups and toppings, discarding a drink by dropping its cup back on the rack or cup stack, and a Skip button plus 30 s
+   timeout for latte art. To make them discoverable (uncommitted): day-1 mentor lines in `ch1_first_shift.json` (latte order:
+   Skip and the timeout; kaw order: discard; Gula Melaka order: Undo), and on guided orders a pump past the recipe or an
+   extra not in it says "… Tap Undo."
 10. **Unused leftovers:** `bar3d.gd` pov brewing mode; `char_*.png`, `counter_bg.png`, `counter_front.png`,
     `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog.png` / `dialog_pointer.png`;
     `EspressoStation.next_hint()`; the `shot_finished` / `milk_frothed` signals have no listeners. Comments reference
@@ -249,10 +263,8 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
 ## 6. Recommendations (for the team to decide; none of this has been done)
 1. Keep running the three test entry points (see `CLAUDE.md`) before and after every change. Consider adding scripted
    checks for later-day systems (DayPlan, friendship, finale), because only day-1 order 4 is covered by the click-through.
-2. Fix text legibility: use `PixelUI.number_label()` for numbers in the objective panel, ticket, recipe book and shop,
-   and look into why "C" reads as "O" in Pixelify bold.
-3. Decide the intended behaviour for the confirmed issues (mid-day quit, patience during the Recipe
-   Book) before changing anything, because several of them affect scoring or saves.
+2. Text legibility: done (item 5 above). On a phone, check that nothing else reads badly at real size.
+3. Decide the intended behaviour for the confirmed issues (patience on "Make it again") before changing anything, because several of them affect scoring or saves.
 4. Fill the provenance gaps in `assets/art/CREDITS.md` (logo, BGM) before submitting.
 5. Plan the HMS integration and final app identity (name, package, icon) if the competition requires them.
 6. Add a `.gitattributes` to stop CRLF churn, and decide whether to keep the `colormap.png.import` change.

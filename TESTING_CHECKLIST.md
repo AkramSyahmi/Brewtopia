@@ -24,6 +24,46 @@ the repo; they drive the real game code, mostly through real mouse events.
 | 5. Discard | Scratch, real drags | ✅ Espresso, milk, toppings, after art, ice-only, both cups out; reuse a fresh cup and serve a new drink; save unchanged; nothing served or rewarded |
 | 6. Undo | Scratch, real clicks | ✅ One or many pumps, mixed order, empty history, two cups, leaving and re-entering the page, serve and discard after undo |
 
+**Font and ticket fix (A + B, uncommitted, 2026-11-01):**
+
+| Area | How | Result |
+|---|---|---|
+| Parse, unit tests, click-through | all 32 tracked scripts; `test_espresso_model.gd`; `regression_flow.gd` at 1280×720, 1600×900, 1024×576 | ✅ 0 errors; PASS; FLOW PASS ×3 |
+| Fix checks 1–6 and the full day | the same scratch scripts as above | ✅ all PASS (assist, Mocha, milk, latte art, discard, undo, full day) |
+| Objective line length | every full-assist line (worst-case values) measured with `numbers()` | ✅ all ≤ 2 lines at 16 px (17 px would make 6 of them 3 lines) |
+| Ticket vs head | `head_rect()` of the customer at the counter vs the ticket rect, plus 5 worst-case slips | ✅ ticket x 1048–1268, head ends at 1055 (rect) / ~1035 (drawn); all slips fit, long names wrap to 2 lines |
+| Screenshots | `capture_views.gd` pixel diff against the commit `3063dd4` | ✅ only the objective panel, ticket and dialogue differ (plus café animation noise); the shop, Recipe Book and latte-art windows are unchanged |
+
+| Fonts (follow-up) | `make_digit_font.gd` re-run (`CHARS` = `012356789/`); `tools/patch_pixelify.py` → `PixelifySansBrew.ttf`; zoomed screenshots | ✅ full stops and colons are Pixelify ("please." not "please_"); 4 is Pixelify ("ORDER 4/4"); "MAKCIK", "Recipes", "Excellent", "cup of coffee", "CURRENT OBJECTIVE", "portafilter" all read correctly; Godot import settings identical to the original font |
+| Squared 5 (follow-up) | `patch_pixelify.py` re-run; 5 vs S rendered at 15–24 px, weights 600/700, game import settings; Recipe Book screenshot | ✅ 5 has a square corner and flat top at every size ("5S", "55" vs "SS"); Recipe Book reads "25 to 30 seconds"; unit tests, `regression_flow.gd` ×3, `capture_views.gd`, full day PASS; title 600 frames: no script errors (1 of 4 runs printed an exit-time "resources still in use" warning, like the known leak warnings) |
+| After the font change | unit tests, `regression_flow.gd` ×3 sizes, `capture_views.gd`, scratch checks, title 600 frames, objective line lengths | ✅ see the final report (all PASS, lines ≤ 2) |
+
+**C (patience) + D (discoverability), uncommitted, 2026-11-01:**
+
+| Area | How | Result |
+|---|---|---|
+| Patience holds | Scratch: drain over 1 s at the bar, with the Recipe Book open, during latte art, and after each closes | ✅ 0.0068/s normally; 0 with the book open; 0 during latte art; drains again after both |
+| Undo nudges | Scratch, real clicks on the topping page | ✅ 2 pumps (recipe amount): normal message; 3rd pump: "Too many pumps of gula melaka. Tap Undo."; vanilla / cocoa (not in the recipe): "No … in this recipe. Tap Undo."; recipe topping: no message; one panel line each |
+| No spoilers | Same, on a no-assist order | ✅ plain "1 pump of …" message, no topping message |
+| Day-1 tips | `ch1_first_shift.json` parsed; each mentor line paginated | ✅ Skip/timeout, discard and Undo lines present; each fits 2 bubble pages |
+| Regression | parse (all scripts), unit tests, `regression_flow.gd` ×3, `capture_views.gd`, every scratch check, full day | ✅ all PASS |
+
+Not checked for C + D: playing day 1 by hand to read the new mentor lines in context.
+
+**E (save only at the day summary), uncommitted, 2026-11-01:**
+
+| Area | How | Result |
+|---|---|---|
+| Mid-day quit (day 1) | Scratch: serve order 1 with real input, reach order 2's intro, quit, reopen | ✅ no save file written mid-day; restart is day 1 exactly as it began (friends {}, story beats {}, money 0, XP 0) |
+| Menu note | Same | ✅ "Leaving now restarts today." shows mid-day, hidden on the summary |
+| Summary | Finish day 1 | ✅ save has day 2, RM 57, XP 80, friendship +3 each, story beats and recipes_seen; summary still reads "DAY 1 COMPLETE" and the clock "Day 1" |
+| Summary quit | Buy an upgrade on the summary, quit, title, Continue | ✅ title "Day 2 · Lv 2 · RM 27"; day 2 starts with no second payment and the upgrade kept |
+| Mid-day quit (day 2) | Serve day 2 order 1, quit, reopen | ✅ save file byte-identical; same 5-order day-2 plan and recipes_seen |
+| Finale | `play_finale` after the summary | ✅ finale_seen saved with day 3 |
+
+Not checked for A + B and the fonts: on a phone (text size at real scale), dialogue lines with digits shown in play, and
+every screen for other letters that might read badly (only the screens in `capture_views.gd` were looked at).
+
 **Not tested:** Android build and touch, a real 30 s latte-art wait (the clock was advanced to 29.6 s), live hand-play
 by a person, days 3+ (pair orders, vague orders, story beats and finale in play), and save files from older builds.
 
