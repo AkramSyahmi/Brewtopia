@@ -61,6 +61,16 @@ Not checked for C + D: playing day 1 by hand to read the new mentor lines in con
 | Mid-day quit (day 2) | Serve day 2 order 1, quit, reopen | ✅ save file byte-identical; same 5-order day-2 plan and recipes_seen |
 | Finale | `play_finale` after the summary | ✅ finale_seen saved with day 3 |
 
+**Dialogue per speaker, uncommitted, 2026-11-01:**
+
+| Area | How | Result |
+|---|---|---|
+| Customer line | Scratch screenshots of day 1 | ✅ cream sign at (296, 64), left of the customer's head, pointer on its right edge aimed at the head; clear of the HUD and ticket |
+| Mentor line | Same, plus the result screen | ✅ brown/gold sign with the cup at (335, 348), left of the mentor, pointer at the mentor's head; on RESULT it stays above the result strip |
+| Player | First CHOICE and the picked answer | ✅ charcoal box at the bottom centre with "You" and the answer buttons (no pointer); the picked answer shows as a "You" line until Next |
+| Faces | `tools/render_portraits.gd` → 5 portraits (32×32); screenshots of customer, mentor and result lines | ✅ each customer / mentor line shows that character's face at 96 px (whole head, hair or headscarf, shoulders), matching the café model; the player's box has no face |
+| Regression | parse, unit tests, `regression_flow.gd` ×3, assist/art/undo/C+D/E checks, full day, title 600 frames | ✅ see the report |
+
 Not checked for A + B and the fonts: on a phone (text size at real scale), dialogue lines with digits shown in play, and
 every screen for other letters that might read badly (only the screens in `capture_views.gd` were looked at).
 

@@ -27,6 +27,8 @@ const OBJECTIVE_W := 420.0  # CURRENT OBJECTIVE panel, top left under the HUD
 const TALK_SIZE := Vector2(560, 128)  # speech bubble: width, and its height with a short line
 const TALK_TEXT_W := 314.0  # the line's column (cup on the left, Next on the right)
 const TALK_TEXT_PX := 20
+const PORTRAIT := "res://assets/ui/portraits/%s.png"  # dialogue faces, one per look (tools/render_portraits.gd)
+const PORTRAIT_PX := 96.0  # 32 art px at 3 screen px each
 const TALK_PAGE_LINES := 3  # a longer line is shown in pages (Next turns the page)
 
 ## Tuning knobs: editable in the Inspector when CafeShift is selected.
@@ -83,9 +85,14 @@ var slip_order: Label
 var slip_hint: Label
 var clock_icon: TextureRect  # sun by day, moon from 6 PM
 var bold: FontVariation
-var talk_art: TextureRect  # the cup picture in the speech bubble
+var talk_art: TextureRect  # the speaker's portrait in the speech bubble (see set_talk_role)
 var talk_pointer: TextureRect
 var in_cafe := false  # the talk box is the speech bubble (not the station tip bar)
+## Who the talk box speaks for: "customer" (cream, beside their head), "mentor" (brown and gold,
+## beside the mentor) or "player" (charcoal, bottom centre, no pointer). See set_talk_role().
+var talk_role := "mentor"
+var talk_face := Rect2()  # the speaker's head on screen, taken once per line (before their hop)
+var talk_styles := {}  # role -> panel StyleBox
 var pages: PackedStringArray = []  # the rest of the current line, one bubble-full each
 var strip: Control
 var title: Label
@@ -414,6 +421,7 @@ func show_step(new_step: Step) -> void:
 			title.text = ""
 			readout.text = ""
 			tip.visible = line[0] != "CHOICE"  # the answers say it's the player's turn
+			set_talk_role(role_of(line[0]), line[0])  # before the hop, so the bubble aims at the head at rest
 			if line[0] == "CHOICE":
 				next_button.hide()
 				speaker.text = shift.cast.PLAYER
@@ -582,6 +590,7 @@ func on_served(drink: Dictionary) -> void:
 	Sfx.play({"Perfect Brew": "perfect", "Great Cup": "perfect", "Good Effort": "good"}.get(r.grade, "fail"), 0.0)
 	# Diagnosis always shows, whatever the assist level: it is the core lesson.
 	speaker.text = shift.cast.MENTOR
+	set_talk_role("mentor")
 	tip.text = "\n".join(paginate(r.tip))  # the whole note, wrapped to the bubble (it shows with the result, no paging)
 	talk_box.reset_size.call_deferred()
 	var who: String = current_order().customer
@@ -983,7 +992,8 @@ func build_ui() -> void:
 	talk_layer.add_child(talk_box)
 	var talk_row := hrow(16)
 	talk_box.add_child(talk_row)
-	talk_art = pic(talk_row, "icon_cup_big")  # the drink, with its steam
+	talk_art = pic(talk_row, "icon_cup_big")  # the speaker's face (or the steaming cup if there is no portrait)
+	talk_art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var talk := VBoxContainer.new()
 	talk.size_flags_horizontal = SIZE_EXPAND_FILL
 	talk.custom_minimum_size.x = TALK_TEXT_W
@@ -1008,12 +1018,20 @@ func build_ui() -> void:
 	next_button.hide()
 	next_button.pressed.connect(advance)
 	talk_row.add_child(next_button)
+	talk_styles = {
+		"mentor": bubble_style,
+		"customer": frame(MENU_ART % "button_cream_normal", Vector4i(15, 15, 15, 18), Vector4(22, 14, 24, 20)),  # like their order bubble
+		"player": frame(HUD_ART % "dialog", Vector4i(12, 12, 12, 15), Vector4(20, 12, 22, 18)),  # charcoal, like the HUD buttons
+	}
 	talk_pointer = TextureRect.new()
 	talk_pointer.texture = load(HUD_ART % "badge_pointer")
 	talk_pointer.mouse_filter = MOUSE_FILTER_IGNORE
+	talk_pointer.size = Vector2(27, 15)  # the pointer art (drawn pointing down)
+	talk_pointer.pivot_offset = talk_pointer.size / 2.0  # turns about its centre (see place_pointer)
 	talk_layer.add_child(talk_pointer)
 	talk_box.resized.connect(place_pointer)
 	talk_box.visibility_changed.connect(place_pointer)
+	strip.resized.connect(place_pointer)  # the mentor's result note stays above the result strip
 	build_objective_panel(talk_layer)
 
 	# Modal windows: a dim backdrop that swallows every click (so nothing on the bar can be
@@ -1208,24 +1226,76 @@ func ui_layer(layer: int) -> Control:
 func show_cafe() -> void:
 	station.hide()
 	bar.show()
-	# Speech bubble near the top, above the people's heads (GCGC style).
-	talk_box.add_theme_stylebox_override("panel", bubble_style)
-	talk_box.position = Vector2(24, 64)  # under the HUD, over the back wall, clear of faces
+	# Speech bubble beside whoever is talking (set_talk_role, place_pointer).
 	talk_box.custom_minimum_size = TALK_SIZE
 	talk_box.reset_size()
 	speaker.show()
 	talk_art.show()
 	tip.add_theme_font_size_override("font_size", TALK_TEXT_PX)
 	tip.autowrap_mode = TextServer.AUTOWRAP_OFF  # paginate() breaks the lines itself (exact height)
-	tip.add_theme_color_override("font_color", CREAM)
 	in_cafe = true
+	set_talk_role(talk_role)
+
+
+## Styles the talk box for who is speaking: `role` = "customer", "mentor" or "player" (see
+## role_of). Each has its own sign and colours, so the speaker is clear before the name is read.
+func set_talk_role(role: String, line_role := "") -> void:
+	talk_role = role
+	talk_box.add_theme_stylebox_override("panel", talk_styles[role])
+	var colours: Array = {"customer": [Color("#8A4A26"), Color("#3B2314")], "mentor": [GOLD, CREAM],
+		"player": [Color("#FFE066"), PAPER]}[role]  # [name, line]
+	speaker.add_theme_color_override("font_color", colours[0])
+	tip.add_theme_color_override("font_color", colours[1])
+	talk_pointer.texture = load(HUD_ART % ("bubble_pointer" if role == "customer" else "badge_pointer"))
+	set_talk_face(line_role)
+	var who: Node3D = bar.customer if role == "customer" else bar.mentor if role == "mentor" else null
+	talk_face = bar.head_rect(who) if who and is_instance_valid(who) else Rect2()
 	place_pointer()
 
 
-## The bubble's pointer sits under its bottom edge, towards the customer (counter only).
+## The speaker's portrait (assets/ui/portraits/<look>.png, made by tools/render_portraits.gd) at
+## 3 screen px per art px, like the other UI icons. `line_role` = the line's cast role ("MENTOR",
+## "MAKCIK", ...; "" = the mentor on the result screen). The player has no face (no body on screen);
+## a role without a portrait falls back to the steaming cup.
+func set_talk_face(line_role: String) -> void:
+	if talk_role == "player":
+		talk_art.hide()
+		return
+	if line_role == "":  # no line given (result screen, café shown again): the mentor, or this order's customer
+		line_role = "MENTOR" if talk_role == "mentor" else current_order().customer
+	var look: String = shift.sprites.get(line_role, "")
+	var path := PORTRAIT % look
+	var face := look != "" and ResourceLoader.exists(path)
+	talk_art.texture = load(path) if face else load(HUD_ART % "icon_cup_big")
+	talk_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE if face else TextureRect.EXPAND_KEEP_SIZE
+	talk_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED if face else TextureRect.STRETCH_KEEP_CENTERED
+	talk_art.custom_minimum_size = Vector2(PORTRAIT_PX, PORTRAIT_PX) if face else Vector2.ZERO
+	talk_art.show()
+
+
+func role_of(line_role: String) -> String:
+	return "player" if line_role in ["PLAYER", "CHOICE"] else "mentor" if line_role == "MENTOR" else "customer"
+
+
+## Places the talk box beside the speaker's head with its pointer aimed at them (customer and
+## mentor: left of the head, pointer on the right edge), or at the bottom centre for the player.
+## Kept under the HUD and above the result strip. Without a head on screen: top left, no pointer.
 func place_pointer() -> void:
-	talk_pointer.visible = in_cafe and talk_box.visible
-	talk_pointer.position = talk_box.position + Vector2(150, talk_box.size.y - 9)
+	var s := talk_box.size
+	var bottom := (strip.position.y if strip.visible else 720.0) - 8.0
+	var pointer := false
+	if talk_role == "player":
+		talk_box.position = Vector2(roundf((1280.0 - s.x) / 2.0), bottom - s.y)
+	elif talk_face.size == Vector2.ZERO:
+		talk_box.position = Vector2(24, 64)
+	else:
+		var y := clampf(talk_face.get_center().y - s.y / 2.0, 64.0, maxf(64.0, bottom - s.y))
+		talk_box.position = Vector2(maxf(8.0, talk_face.position.x - 18.0 - s.x), y).round()
+		var side_y := clampf(talk_face.get_center().y, y + 24.0, y + s.y - 24.0)
+		talk_pointer.rotation = -PI / 2.0  # drawn pointing down: turned to point right, at the head
+		talk_pointer.position = (Vector2(talk_box.position.x + s.x + 1.5, side_y) - talk_pointer.size / 2.0).round()
+		pointer = true
+	talk_pointer.visible = in_cafe and talk_box.visible and pointer
 
 
 ## At the bar the talk box is not shown: instructions are in the objective panel and

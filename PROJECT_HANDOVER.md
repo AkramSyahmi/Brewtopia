@@ -222,7 +222,7 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
    Skip and the timeout; kaw order: discard; Gula Melaka order: Undo), and on guided orders a pump past the recipe or an
    extra not in it says "… Tap Undo."
 10. **Unused leftovers:** `bar3d.gd` pov brewing mode; `char_*.png`, `counter_bg.png`, `counter_front.png`,
-    `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog.png` / `dialog_pointer.png`;
+    `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog_pointer.png` (`dialog.png` is now the player's talk box);
     `EspressoStation.next_hint()`; the `shot_finished` / `milk_frothed` signals have no listeners. Comments reference
     `ART_LIST.md`, which doesn't exist.
 11. **Generators would overwrite current art:** `tools/render_sprites.gd` writes `milk_fridge.png` (not in `KEEP.txt`).
