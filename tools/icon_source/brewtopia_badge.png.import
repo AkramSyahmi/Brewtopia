@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bw13mumaygc2y"
-path="res://.godot/imported/char_student_happy.png-be07f9bc8db56e07c423b39a0c5e2bf1.ctex"
+uid="uid://bbtv648fdmgfw"
+path="res://.godot/imported/brewtopia_badge.png-c19fd7bdcf75577f3f490c47cdc31175.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/char_student_happy.png"
-dest_files=["res://.godot/imported/char_student_happy.png-be07f9bc8db56e07c423b39a0c5e2bf1.ctex"]
+source_file="res://tools/icon_source/brewtopia_badge.png"
+dest_files=["res://.godot/imported/brewtopia_badge.png-c19fd7bdcf75577f3f490c47cdc31175.ctex"]
 
 [params]
 

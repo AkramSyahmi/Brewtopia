@@ -63,7 +63,7 @@ The game is laid out for a 1280 × 720 landscape screen and scales to other size
 ### Android
 
 The `Android` export preset (`export_presets.cfg`) builds an APK with the Gradle build
-(arm64-v8a and x86_64). Install the Android build template from Godot first
+(arm64-v8a, which every current Android phone uses). Install the Android build template from Godot first
 (**Project → Install Android Build Template**), then export from **Project → Export**.
 
 ### Tests

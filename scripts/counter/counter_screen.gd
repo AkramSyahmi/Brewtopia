@@ -20,7 +20,6 @@ const POP_S := 0.2  # bubble appear (fade + rise + scale-in)
 const FADE_S := 0.12  # bubble disappear
 const RISE_PX := 6.0
 const QUEUE_SPOT := CafeRoom.QUEUE_SPOT  # next customer waits here
-const EVENING := Color(1.0, 0.92, 0.86)  # warm light used by the station screens
 const INK := Color("#3B2314")  # dark brown text on the cream bubble
 
 var cafe: Bar3D

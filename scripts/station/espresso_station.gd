@@ -154,6 +154,7 @@ class Group:
 	var green: ColorRect
 	var bubble: Label
 	var knob_lit: Sprite2D  # the brew button glowing green while this group pulls a shot
+	var fast_cue: Control  # ">>" just ahead of the marker while the shot runs fast (shot_speed above sim_speed)
 
 
 class Cup:
@@ -608,6 +609,13 @@ func build_group(i: int) -> void:
 	rect(Color("#9BA39E"), Vector2.ZERO, SHOT_BAR.size, g.bar)
 	g.green = rect(Color("#6BD46B"), Vector2.ZERO, Vector2(8, SHOT_BAR.size.y), g.bar)
 	g.marker = rect(Color("#FFFFFF"), Vector2(0, -2), Vector2(2, SHOT_BAR.size.y + 4), g.bar)
+	g.fast_cue = Control.new()  # two pixel chevrons, 1 base px strokes, inside the bar
+	g.fast_cue.mouse_filter = MOUSE_FILTER_IGNORE
+	for k in 2:
+		for row in 5:
+			rect(Color("#36251D"), Vector2(k * 4 + [0, 1, 2, 1, 0][row], row + 1.5), Vector2(1, 1), g.fast_cue)
+	g.fast_cue.hide()
+	g.bar.add_child(g.fast_cue)
 	g.bar.hide()
 	g.bubble = PixelUI.number_label(bubble(), 24)
 	g.knob_lit = Sprite2D.new()
@@ -1069,7 +1077,9 @@ func _process(delta: float) -> void:
 	for g in groups:
 		var c := cup_at("tray%d" % g.index)
 		if g.state == ShotState.EXTRACTING:
-			var step := delta * shot_speed(g, c)
+			var speed := shot_speed(g, c)
+			var step := delta * speed
+			g.fast_cue.visible = speed > sim_speed * 1.05  # visual only: why the grams jump; gone where it slows
 			g.sim_time += step
 			set_stream(g, c)
 			if c:
@@ -1077,6 +1087,8 @@ func _process(delta: float) -> void:
 				update_cup_visual(c)
 			if g.sim_time * g.flow >= MAX_YIELD_G:
 				toggle_brew(g.index)
+		else:
+			g.fast_cue.hide()
 		g.knob_lit.visible = g.state == ShotState.EXTRACTING
 		g.knob_lit.modulate.a = 0.8 + 0.2 * sin(hover_t * 6.0)
 		var bar_on: bool = page == 0 and not recipe.is_empty() and c != null and (g.state == ShotState.EXTRACTING or c.yield_g > 0.0)
@@ -1086,6 +1098,7 @@ func _process(delta: float) -> void:
 			g.green.position.x = (recipe.target_yield_g - green_zone_g) / MAX_YIELD_G * w
 			g.green.size.x = 2.0 * green_zone_g / MAX_YIELD_G * w
 			g.marker.position.x = clampf(c.yield_g / MAX_YIELD_G * w, 0.0, w - 2.0)
+			g.fast_cue.position.x = minf(g.marker.position.x + 4.0, w - 8.0) + float(int(hover_t * 6.0) % 2)  # nudges forward
 			show_bubble(g.bubble, Vector2(cup_stand(g.index).x, 306), "%.1f g · %d s" % [c.yield_g, int(g.sim_time)],
 				c.yield_g, recipe.target_yield_g, true)
 		else:

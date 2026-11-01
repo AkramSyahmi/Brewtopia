@@ -9,10 +9,11 @@ HUAWEI UXHMAC 2026 competition (Android).
 - Engine: **Godot 4.7.2** (`android/.build_version`). Renderer `mobile`. Viewport **1280×720**, stretch `canvas_items`.
 - Entry point: `run/main_scene = res://scenes/ui/title_screen.tscn`.
 - Autoload: `Audio` → `scripts/core/audio.gd` (the only one).
-- `config/name` is `"BREWTOPIA"` (also the Android app label, `package/name`); the Android package ID is still `com.uxhmac.game`
-  (kept on purpose: changing it makes phones treat it as a new app). App and launcher icons: `assets/icon/` (`tools/make_app_icon.gd`).
-  Desktop `user://` is named after `config/name`, so desktop saves from before the rename (under `UXHMAC 2026`) aren't read;
-  Android saves follow the package ID and are unaffected.
+- `config/name` is `"BREWTOPIA"` (also the Android app label, `package/name`); the Android package ID is `com.brewtopia.game`
+  (was `com.uxhmac.game`; set before any phone install. Don't change it again: phones would treat it as a new app and saves on
+  Android follow it; it must match any AppGallery Connect registration). App and launcher icons: `assets/icon/`, made by
+  `tools/make_app_icon.gd` from the café badge `tools/icon_source/brewtopia_badge.png` (kept out of the APK by the `tools/*` filter).
+  Desktop `user://` is named after `config/name`, so desktop saves from before the rename (under `UXHMAC 2026`) aren't read.
 
 Longer explanations: `PROJECT_HANDOVER.md`. Manual test procedure: `TESTING_CHECKLIST.md`.
 
@@ -40,7 +41,7 @@ equipment, the café) is built in code at runtime.** There are no editor-authore
 | `assets/ui/portraits/` | Dialogue faces, one per character look (`tools/render_portraits.gd`, renders the café's 3D models) |
 | `assets/fonts/` | PixelifySansBrew (the game's body font, made from PixelifySans by `tools/patch_pixelify.py`), PixelifySans (source), Silkscreen-Bold, BrewtopiaDigits (+ OFL licences) |
 | `assets/audio/*.wav`, `assets/audio/bgm/*.mp3` | Generated SFX (`tools/gen_audio.gd`), 2 music tracks |
-| `assets/models/` | Kenney CC0 characters and furniture (.glb) |
+| `assets/models/` | Kenney CC0 characters and furniture (.glb): only the ones the game loads (the 5 `Bar3D.LOOKS` models; chair, pottedPlant, lampSquareCeiling, bookcaseOpen, books). Add a model back from the Kenney pack before using a new one |
 | `tests/`, `tools/` | Test harnesses; art, audio and font generators |
 | `addons/HmsPlugin/` | Huawei export plugin (an .aar shell; no game code calls it) |
 
@@ -76,7 +77,8 @@ and station are siblings that are **shown and hidden**, not scene changes.
   the locked portafilter to start and stop. The knob glows green while its group runs (`Group.knob_lit`, recoloured at runtime
   from `machine.png` by `lit_knob()`); the tutorial's brew step outlines the knob. Flow comes from `EspressoModel.flow_rate`. Real time is fast, then slow
   (`shot_speed()`): the run-up to `SHOT_SLOW_FROM_G` (8 g) short of the target takes `SHOT_RUNUP_S` (4 s) at any grind, then
-  ×2 (`sim_speed`) through the good zone, fast again after it (about 7 s real at the ideal grind). The shot clock, grams and
+  ×2 (`sim_speed`) through the good zone, fast again after it (about 7 s real at the ideal grind). While it runs fast, two
+  pixel chevrons (`Group.fast_cue`) ride just ahead of the marker in the shot bar (visual only). The shot clock, grams and
   every scored value are simulated, so scoring and the recipes' 25–30 s don't depend on it.
 - **Milk:** drag the pitcher to the fridge (cold) → steam zone (popup: hold = heat, lower = more foam) → onto a cup.
   The popup (`build_steam_panel`, at x 690 so the left group head stays visible): "Steam Milk" banner, red X (= Done), Froth
@@ -175,7 +177,7 @@ Project-specific rules:
   `PixelifySansBrew.ttf`. Don't edit the generated fonts by hand: change the tool and re-run it.
   `tools/render_portraits.gd` (needs a window) overwrites `assets/ui/portraits/*.png`; re-run it when a character's model or
   look changes, or a new look is added to `Bar3D.LOOKS`. `tools/make_app_icon.gd` overwrites `assets/icon/*.png` (built from
-  `icon_cup_big.png`).
+  `tools/icon_source/brewtopia_badge.png`).
 - When art changes size or layout, re-measure the art-measured constants in the same change.
 - Data JSON keys are read by code: content edits are fine, key renames aren't. Changing `DayPlan`'s seed or what `recipes_seen` means
   changes every player's future days.
@@ -220,9 +222,13 @@ Confirmed (verified in code, data or screenshots):
   digits font's bar-shaped full stop and solid 4, by dropping `.`, `:` and `4` from `CHARS` in `tools/make_digit_font.gd`.)
 - Freeing `Bar3D` within ~1.2 s of its creation (e.g. leaving the title or café immediately) prints
   "Lambda capture … was freed" / "create_tween on null" from the delayed timers in `Bar3D.steam_wisps()` (`bar3d.gd:145`). Harmless.
-- `ART_LIST.md` is referenced in comments but doesn't exist. Unused: `Bar3D` pov mode, `char_*.png`, `counter_bg.png`,
-  `counter_front.png`, `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog_pointer.png` (`dialog.png` is now the
-  player's talk box).
+- `ART_LIST.md` is referenced in comments but doesn't exist. Unused: the `Bar3D` pov mode's interaction code (its 3D equipment
+  is still shown in the iso café). Removed in the cleanup (uncommitted, 2026-11-01): `char_*.png`, `counter_bg.png`,
+  `counter_front.png`, `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog_pointer.png`, 7 unused Kenney
+  characters and 12 unused furniture models. `render_sprites.gd`, `gen_backgrounds.gd`, `gen_audio.gd` and `make_menu_art.gd`
+  would write the 2D/audio ones again if re-run (harmless; nothing loads them).
+- Android export: arm64-v8a only (`architectures/x86_64=false`; x86 emulators can't run it), and `exclude_filter` keeps
+  `docs/`, `tests/`, `tools/` and the source font `PixelifySans.ttf` out of the APK (they stay in the repo).
 
 Fixed on `feature/adeeb-brewtopia-work` (fixes 1–6 committed in `3063dd4`; the font/ticket fix is uncommitted; verified 2026-11-01,
 see TESTING_CHECKLIST.md "Verified outcomes"): assist full vs hints, Mocha latte art scoring, milk temperature labels and pouring, latte-art Skip and timeout, drink discard,

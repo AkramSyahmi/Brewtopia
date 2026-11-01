@@ -79,7 +79,7 @@ switching pages slides the world. Drop and tap targets are `SnapZone`s (Area2D +
 5. **Shot:** tap the brew button (the round knob above the group head; it glows green while the shot runs), or the locked
    portafilter, which does the same. The simulated shot clock runs fast for the run-up (always about 4 real s) and at ×2
    from 8 g short of the target through the good zone (`EspressoStation.shot_speed`), and flow depends on grind, dose and tamping. A bar with a green
-   zone (±2 g, wider with the upgrade) follows the cup's weight. Tap again to stop (it stops automatically at 70 g). The station rates
+   zone (±2 g, wider with the upgrade) follows the cup's weight; ">>" chevrons ahead of its marker show the fast part. Tap again to stop (it stops automatically at 70 g). The station rates
    the shot Perfect / Good / Bad straight away.
 6. **Milk:** drag the pitcher to the COLD MILK fridge door → to the steam wand (popup: **hold** to heat at 12 °C/s,
    drag lower for more foam, higher to only heat; press Done or the X). The popup shows a Froth gauge and a thermometer
@@ -179,9 +179,10 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
 ### 3.3 Not implemented or unfinished
 - **Huawei services:** `addons/HmsPlugin/` contains the .aar files and an export plugin (v0.0), but no game code calls it
   (README: "integration in progress").
-- The app name is BREWTOPIA (`config/name`, Android `package/name`) with its own icon (`assets/icon/`, `tools/make_app_icon.gd`).
-  The package ID is still the placeholder `com.uxhmac.game`: decide it before the first public install (changing it later makes
-  phones see a new app, and it must match any AppGallery Connect registration). Renaming changed the desktop `user://` folder.
+- The app name is BREWTOPIA (`config/name`, Android `package/name`); its icon is the café badge (`assets/icon/`, made by
+  `tools/make_app_icon.gd` from `tools/icon_source/brewtopia_badge.png`). The package ID is `com.brewtopia.game` (was the
+  placeholder `com.uxhmac.game`): keep it from now on (changing it makes phones see a new app, and it must match any AppGallery
+  Connect registration). Renaming changed the desktop `user://` folder.
 - `assets/art/CREDITS.md` doesn't record a source for the logo (`assets/art/ui/brewtopia_logo.png`) or the BGM.
   Commit `0a90765` says `tools/import_art.gd` can bring in "AI or pack art". Which current assets, if any, came that way is
   **unknown**. Commit `1871d64` says the station art was painted by `tools/make_topping_art.gd`.
@@ -227,9 +228,9 @@ The "brewtopia 2 reference" and the GCGC references are mentioned in commits and
    timeout for latte art. To make them discoverable (uncommitted): day-1 mentor lines in `ch1_first_shift.json` (latte order:
    Skip and the timeout; kaw order: discard; Gula Melaka order: Undo), and on guided orders a pump past the recipe or an
    extra not in it says "… Tap Undo."
-10. **Unused leftovers:** `bar3d.gd` pov brewing mode; `char_*.png`, `counter_bg.png`, `counter_front.png`,
-    `pitcher_rack.png`, `assets/audio/music.wav`, `assets/ui/hud/dialog_pointer.png` (`dialog.png` is now the player's talk box);
-    `EspressoStation.next_hint()`; the `shot_finished` / `milk_frothed` signals have no listeners. Comments reference
+10. **Unused leftovers:** `bar3d.gd` pov brewing mode (interaction code only; its 3D equipment shows in the iso café);
+    `EspressoStation.next_hint()`; (removed in the cleanup: `char_*.png`, `counter_bg.png`, `counter_front.png`, `pitcher_rack.png`,
+    `assets/audio/music.wav`, `dialog_pointer.png`, 7 unused Kenney characters and 12 unused furniture models); the `shot_finished` / `milk_frothed` signals have no listeners. Comments reference
     `ART_LIST.md`, which doesn't exist.
 11. **Generators would overwrite current art:** `tools/render_sprites.gd` writes `milk_fridge.png` (not in `KEEP.txt`).
     `tools/gen_iced_art.gd` writes `ice_bin.png` without checking `KEEP.txt`. `tools/make_topping_art.gd` rewrites

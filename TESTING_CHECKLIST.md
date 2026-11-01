@@ -90,7 +90,18 @@ the fill turns green inside the band); steam clouds rise from the rim only while
 on "full" orders only (hidden on "hints"/"none"). Same footprint as before (x 690 →), so the left group head stays in view.
 Regression: parse, unit tests, `regression_flow.gd` ×3, `capture_views.gd`, assist / undo / milk / cd / full-day checks ✅ all PASS.
 
-**Name, icon, remake patience, New Game sign, vibration, uncommitted, 2026-11-01:** scratch click-through ✅: config name
+**Cleanup and APK size, uncommitted, 2026-11-01:** deleted 34 unused assets (+ their .import files), each checked for path,
+name, built-name pattern and uid:// references (0 hits); export: arm64-v8a only, `exclude_filter` for docs/tests/tools and
+the source font; removed the unused `CounterScreen.EVENING`. Headless `--import`: no load errors. Parse 38/38, unit tests,
+`regression_flow.gd` ×3, assist / undo / milk / cd / New Game + remake / full-day checks ✅ (same as the baseline).
+`capture_views.gd` before vs after: 0.00–0.15% pixels differ, the same as two runs of unchanged code (idle animation and steam
+timing); 8_result 1.17% = Makcik's and the mentor's idle pose at a different moment (checked by eye). APK not built (the Gradle
+build template isn't installed), so the APK saving is an estimate.
+
+**Fast cue on the shot bar, uncommitted, 2026-11-01:** screenshots ✅: at 10.6 g (fast run-up) two dark chevrons sit just
+ahead of the marker; at 32.3 g (slow, near the green) and after stopping they are gone. Visual only (`shot_speed` unchanged).
+
+**Name, icon, remake patience, New Game sign, vibration, committed in `1707846`, 2026-11-01:** scratch click-through ✅: config name
 BREWTOPIA and the icon loads; New Game opens the cream sign with Cancel focused and the day named; Cancel and Esc close it and
 keep the save; Start fresh resets the save and opens the café; a failed drink at 10% patience → "Make it again" → 50%; at 80% it
 stays 80%; `Sfx.buzz` is silent on desktop. Not checked: vibration and the launcher icon on a real phone (needs an APK).
